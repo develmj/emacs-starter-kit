@@ -89,5 +89,25 @@
 (define-key global-map "\C-cl" 'org-store-link)
 (define-key global-map "\C-ca" 'org-agenda)
 
+;; jump to definition
+(global-set-key "\C-cj" 'jump-to-def)
+
+;; escreen
+(global-set-key (kbd "M-1") 'escreen-goto-screen-0)
+(global-set-key (kbd "M-2") 'escreen-goto-screen-1)
+(global-set-key (kbd "M-3") 'escreen-goto-screen-2)
+(global-set-key (kbd "M-4") 'escreen-goto-screen-3)
+(global-set-key (kbd "M-5") 'escreen-goto-screen-4)
+(global-set-key [S-right] 'escreen-goto-next-screen)
+(global-set-key [S-left]  'escreen-goto-prev-screen)
+
+(global-set-key [C-right] 'escreen-goto-next-screen)
+(global-set-key [C-left]  'escreen-goto-prev-screen)
+
+(global-set-key "\C-h\C-i" 'highline-on)
+(global-set-key "\C-h\C-o" 'highline-off)
+
+(global-set-key (kbd "C-c t") 'bash-start)
+
 (provide 'starter-kit-bindings)
 ;;; starter-kit-bindings.el ends here

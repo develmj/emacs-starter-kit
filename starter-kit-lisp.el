@@ -5,7 +5,6 @@
 (define-key read-expression-map (kbd "TAB") 'lisp-complete-symbol)
 (define-key lisp-mode-shared-map (kbd "C-c l") "lambda")
 (define-key lisp-mode-shared-map (kbd "RET") 'reindent-then-newline-and-indent)
-(define-key lisp-mode-shared-map (kbd "C-\\") 'lisp-complete-symbol)
 (define-key lisp-mode-shared-map (kbd "C-c v") 'eval-buffer)
 
 (defface esk-paren-face
@@ -46,16 +45,6 @@
   ;; need a binding that works in the terminal
   '(define-key paredit-mode-map (kbd "M-)") 'paredit-forward-slurp-sexp))
 
-(dolist (x '(scheme emacs-lisp lisp clojure))
-  (when window-system
-    (font-lock-add-keywords
-     (intern (concat (symbol-name x) "-mode"))
-     '(("(\\|)" . 'esk-paren-face))))
-  (add-hook
-   (intern (concat (symbol-name x) "-mode-hook")) 'turn-on-paredit)
-  (add-hook
-   (intern (concat (symbol-name x) "-mode-hook")) 'run-coding-hook))
-
 (eval-after-load 'clojure-mode
   '(font-lock-add-keywords
     'clojure-mode `(("(\\(fn\\>\\)"
@@ -63,5 +52,48 @@
                                                (match-end 1) "ƒ")
                                nil))))))
 
+(add-to-list 'load-path (concat dotfiles-dir "/elpa-to-submit/slime-contrib"))
+(add-to-list 'load-path (concat dotfiles-dir "/deps/swank-cl"))
+
+(eval-after-load "slime"
+  '(progn
+     (add-to-list 'slime-lisp-implementations '(sbcl ("sbcl")))
+     (require 'slime-fuzzy)
+     (setq
+      slime-complete-symbol-function 'slime-fuzzy-complete-symbol
+      slime-enable-evaluate-in-emacs t
+      slime-fuzzy-completion-in-place t
+      slime-use-autodoc-mode t)
+
+    (define-key slime-mode-map (kbd "C-c s") 'slime-selector)
+    (define-key slime-repl-mode-map (kbd "C-c s") 'slime-selector)
+    (define-key slime-mode-map (kbd "TAB") 'slime-indent-and-complete-symbol)
+    (define-key slime-mode-map [f11] 'slime-cheat-sheet)
+
+    (def-slime-selector-method ?4
+      "Switch to #clojure on Freenode" "#clojure")
+
+    (def-slime-selector-method ?j
+      "most recently visited clojure-mode buffer."
+      (slime-recently-visited-buffer 'clojure-mode))
+
+    (autoload 'paredit-mode "paredit"
+	"Minor mode for pseudo-structurally editing Lisp code."		
+        t)
+    (require 'clj-parenface)
+    (add-hook 'clojure-mode-hook 'tweak-clojure-syntax)
+    (add-hook 'clojure-mode-hook '(lambda () (paredit-mode 1)))
+    (require 'slime-clojure-extra)))
+
+(require 'slime-banner)
+(add-hook 'slime-load-hook (lambda () (require 'slime-banner)))
+(add-hook 'slime-load-hook (lambda () (require 'slime-asdf)))
+
+(eval-after-load "clojure-mode"
+  '(progn
+     (require 'slime)
+     (add-hook 'clojure-mode-hook (lambda () (slime-mode t)))))
+
+(add-hook 'scheme-mode-hook '(lambda () (paredit-mode 1)))
 (provide 'starter-kit-lisp)
 ;; starter-kit-lisp.el ends here

@@ -15,7 +15,7 @@
 (prefer-coding-system 'utf-8)
 (ansi-color-for-comint-mode-on)
 
-(setq visible-bell t
+(setq visible-bell nil
       echo-keystrokes 0.1
       font-lock-maximum-decoration t
       inhibit-startup-message t
@@ -33,9 +33,6 @@
       oddmuse-directory (concat dotfiles-dir "oddmuse")
       xterm-mouse-mode t
       save-place-file (concat dotfiles-dir "places"))
-
-(add-to-list 'safe-local-variable-values '(lexical-binding . t))
-(add-to-list 'safe-local-variable-values '(whitespace-line-column . 80))
 
 ;; Set this to whatever browser you use
 ;; (setq browse-url-browser-function 'browse-url-firefox)
@@ -146,6 +143,73 @@
           (lambda ()
             (unless (string-match "question" oddmuse-post)
               (setq oddmuse-post (concat "uihnscuskc=1;" oddmuse-post)))))
+
+(require 'jump-def)
+(autoload 'jump-to-def "jump-def" "Jump to a definition." t)
+
+(require 'rotate-split)
+
+;; dired
+(add-to-list 'load-path (concat dotfiles-dir "/elpa-to-submit/dired-extra"))
+
+(require 'highline)
+(add-hook 'dired-after-readin-hook 'highline-on)
+
+(require 'dired-details)
+(dired-details-install)
+
+(require 'wdired)
+(define-key dired-mode-map "r" 'wdired-change-to-wdired-mode)
+(add-hook 'dired-load-hook
+	(lambda ()
+		(load "dired-x")
+		;; Set dired-x global variables here.  For example:
+		(setq dired-guess-shell-gnutar "rm")
+		(setq dired-x-hands-off-my-keys nil)))
+
+(require 'dired-replace-string)
+
+(defun dired-lynx-keybindings ()
+  (define-key dired-mode-map [left]  'dired-up-directory)
+  (define-key dired-mode-map [right]  'dired-view-file))
+(add-hook 'dired-mode-hook 'dired-lynx-keybindings)
+
+(setq dired-recursive-copies 'always)
+(setq dired-recursive-deletes 'top)
+(require 'dired-open)
+(define-key dired-mode-map [C-return] 'dired-open-file)
+
+(require 'color-file-completion)
+
+(add-hook 'after-save-hook
+	#'(lambda ()
+            (and (save-excursion
+                   (save-restriction
+                     (widen)
+                     (goto-char (point-min))
+                     (save-match-data
+                       (looking-at "^#!"))))
+                 (not (file-executable-p buffer-file-name))
+                 (shell-command (concat "chmod u+x " buffer-file-name))
+                 (message
+                  (concat "Saved as script: " buffer-file-name)))))
+
+;;shell
+(require 'shell-command)
+(shell-command-completion-mode)
+(setq shell-command-completion-mode t)
+(require 'bash-start)
+
+
+;; textile mode
+(require 'textile-mode)
+(add-to-list 'auto-mode-alist '("\\.textile\\'" . textile-mode))
+
+;; escreen
+(load "escreen")
+(escreen-install)
+
+(setq resize-mini-windows nil)
 
 (provide 'starter-kit-misc)
 ;;; starter-kit-misc.el ends here

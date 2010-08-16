@@ -24,15 +24,15 @@
 
 (add-to-list 'load-path dotfiles-dir)
 
+(require 'package)
+(package-initialize)
+(require 'starter-kit-elpa)
+
 (add-to-list 'load-path (concat dotfiles-dir "/elpa-to-submit"))
 
 (setq autoload-file (concat dotfiles-dir "loaddefs.el"))
 (setq package-user-dir (concat dotfiles-dir "elpa"))
 (setq custom-file (concat dotfiles-dir "custom.el"))
-
-(require 'package)
-(package-initialize)
-(require 'starter-kit-elpa)
 
 ;; These should be loaded on startup rather than autoloaded on demand
 ;; since they are likely to be used in every session
@@ -45,12 +45,11 @@
 (require 'recentf)
 
 ;; backport some functionality to Emacs 22 if needed
-(require 'dominating-file)
+;(require 'dominating-file)
 
 ;; Load up starter kit customizations
 
 (require 'starter-kit-defuns)
-(require 'starter-kit-bindings)
 (require 'starter-kit-misc)
 (require 'starter-kit-registers)
 (require 'starter-kit-eshell)
@@ -58,6 +57,10 @@
 (require 'starter-kit-perl)
 (require 'starter-kit-ruby)
 (require 'starter-kit-js)
+(require 'starter-kit-jabber)
+(require 'starter-kit-erlang)
+(require 'starter-kit-bindings)
+(require 'starter-kit-emms)
 
 (regen-autoloads)
 (load custom-file 'noerror)
