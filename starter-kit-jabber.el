@@ -24,11 +24,11 @@
 (setq jabber-show-resources t)
 
 (setq osd-program-args
-      '("--pos"          "top"
+      '("--pos"          "bottom"
         "--offset"       "30"
         "--align"        "right"
         "--delay"        "10"
-        "--color"        "dodgerblue1"
+        "--color"        "red"
         "--outline"      "1"
         "--shadow"       "3"
         "--shadowcolour" "#1e2320"
