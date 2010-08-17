@@ -20,10 +20,8 @@
                               'clojure-mode
                               'swank-clojure
                               'lusty-explorer
-                              'smex
                               'paredit
-                              'ruby-electric
-                              'emms)
+                              'ruby-electric)
                               "Libraries that should be installed by default."
                               )
 

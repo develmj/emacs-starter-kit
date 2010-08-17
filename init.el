@@ -58,9 +58,7 @@
 (require 'starter-kit-ruby)
 (require 'starter-kit-js)
 (require 'starter-kit-jabber)
-(require 'starter-kit-erlang)
 (require 'starter-kit-bindings)
-(require 'starter-kit-emms)
 
 (regen-autoloads)
 (load custom-file 'noerror)
