@@ -18,7 +18,8 @@
                               'highlight-symbol
                               'magit
                               'clojure-mode
-                              'swank-clojure
+                              'slime
+                              'slime-repl
                               'lusty-explorer
                               'paredit
                               'ruby-electric)
