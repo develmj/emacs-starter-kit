@@ -232,5 +232,12 @@ Symbols matching the text at point are put first in the completion list."
   (let ((name (file-relative-name file)))
     (vc-git-command buf 0 name "blame" "-w" rev)))
 
+(defun chrome ()
+  (interactive)
+  (setq browse-url-generic-program (executable-find "google-chrome")
+        browse-url-browser-function 'browse-url-generic)
+  (browse-url-at-point))
+
+
 (provide 'starter-kit-defuns)
 ;;; starter-kit-defuns.el ends here
