@@ -17,8 +17,16 @@
 
 ;;; Emacs Lisp
 
+(defun paren-change ()
+  (require 'cparen)
+  (cparen-activate)
+  (require 'paredit)
+  (paredit-mode 1))
+
+
 (add-hook 'emacs-lisp-mode-hook 'turn-on-eldoc-mode)
 (add-hook 'emacs-lisp-mode-hook 'esk-remove-elc-on-save)
+(add-hook 'emacs-lisp-mode-hook 'paren-change)
 
 (defun esk-remove-elc-on-save ()
   "If you're saving an elisp file, likely the .elc is no longer valid."

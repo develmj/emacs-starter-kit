@@ -111,12 +111,12 @@ For example -Xmx512m or -Dsun.java2d.noddraw=true"
 (defcustom swank-clojure-deps
   (list (concat "http://clojars.org/repo/swank-clojure/swank-clojure/1.3.0-SNAPSHOT/"
                 "swank-clojure-1.3.0-20100502.112537-8.jar")
-        (concat "http://build.clojure.org/snapshots/org/"
-                "clojure/clojure/1.2.0-master-SNAPSHOT/"
-                "clojure-1.2.0-master-20100813.160144-94.jar")
-        (concat "http://build.clojure.org/snapshots/org/"
-                "clojure/clojure-contrib/1.2.0-SNAPSHOT/"
-                "clojure-contrib-1.2.0-SNAPSHOT.jar"))
+        (concat "http://build.clojure.org/releases/org/"
+                "clojure/clojure/1.2.0/"
+                "clojure-1.2.0.jar")
+        (concat "http://build.clojure.org/releases/org/"
+                "clojure/clojure-contrib/1.2.0/"
+                "clojure-contrib-1.2.0.jar"))
   "A list of urls of jars required to run swank-clojure. If they
 don't exist in `swank-clojure-jar-home' and
 `swank-clojure-classpath' is not set, the user will be prompted
