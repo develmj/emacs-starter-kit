@@ -169,4 +169,6 @@ the character typed."
   (setq indent-tabs-mode t)
   (setq c-basic-offset 8))
 
+(add-hook 'c-mode-hook 'linux-c-mode)
+
 (provide 'starter-kit-c)
