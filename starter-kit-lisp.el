@@ -85,12 +85,12 @@
       "most recently visited clojure-mode buffer."
       (slime-recently-visited-buffer 'clojure-mode))
 
-    (autoload 'paredit-mode "paredit"
-	"Minor mode for pseudo-structurally editing Lisp code."		
-        t)
+    ;; (autoload 'paredit-mode "paredit"
+    ;;     "Minor mode for pseudo-structurally editing Lisp code."		
+    ;;     t)
     (require 'clj-parenface)
     (add-hook 'clojure-mode-hook 'tweak-clojure-syntax)
-    (add-hook 'clojure-mode-hook '(lambda () (paredit-mode 1)))
+    ;; (add-hook 'clojure-mode-hook '(lambda () (paredit-mode 1)))
     (require 'slime-clojure-extra)))
 
 (require 'slime-banner)
