@@ -204,6 +204,7 @@
 ;; textile mode
 (require 'textile-mode)
 (add-to-list 'auto-mode-alist '("\\.textile\\'" . textile-mode))
+(add-hook 'textile-mode-hook '(lambda () (auto-fill-mode 0)))
 
 ;; escreen
 (load "escreen")
@@ -212,8 +213,19 @@
 (setq resize-mini-windows nil)
 
 (require 'twilight)
-(require 'color-theme)
-(color-theme-twilight)
+(require 'color-theme-empty-void)
+(color-theme-empty-void)
+
+
+;; (load "xterm-256color")
+
+;; (add-hook 'after-make-frame-functions
+;;           (lambda (frame)
+;;             (set-variable 'color-theme-is-global nil)
+;;             (select-frame frame)
+;;             (if window-system
+;;                 (color-theme-twilight)
+;;               (color-theme-tty-dark))))
 
 (provide 'starter-kit-misc)
 ;;; starter-kit-misc.el ends here
