@@ -164,11 +164,7 @@ the character typed."
   (c-set-style "K&R")
   (setq tab-width 8)
   (setq indent-tabs-mode t)
-  (setq c-basic-offset 8)
-  )
-
-;(add-to-list 'auto-mode-alist '("\.c$" . linux-c-mode))
-
+  (setq c-basic-offset 8))
 
 (add-hook 'c-mode-hook 'linux-c-mode)
 

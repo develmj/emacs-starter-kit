@@ -56,7 +56,7 @@
      (font-lock-warning-face ((t (:bold t :foreground "Pink"))))
      (gui-element ((t (:background "#303030" :foreground "black"))))
      (region ((t (:background "#444444"))))
-     (mode-line ((t (:background "#303030" :foreground "black" :box (:line-width 1 :color "SteelBlue4")))))     
+     (mode-line ((t (:background "DeepSkyBlu4" :foreground "black" :box (:line-width 1 :color "SteelBlue4")))))     
      (highlight ((t (:background "#222222"))))
      (highline-face ((t (:background "DeepSkyBlue4" :foreground "white"))))
      (italic ((t (nil))))
