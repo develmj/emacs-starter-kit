@@ -212,9 +212,9 @@
 
 (setq resize-mini-windows nil)
 
-(require 'twilight)
-(require 'color-theme)
-(color-theme-twilight)
+;; (require 'twilight)
+;; (require 'color-theme)
+;; (color-theme-twilight)
 
 (provide 'starter-kit-misc)
 ;;; starter-kit-misc.el ends here
