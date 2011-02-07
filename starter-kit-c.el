@@ -1,6 +1,4 @@
 ;;; starter-kit-eshell.el --- Making the defaults a bit saner
-;;
-
 ;;C - mode
 
 (require 'compile)
@@ -10,36 +8,36 @@
     (c++-mode     . "g++ -g %s -o %s -lm")	; Doesn't work for ".h" files.
     ))
  
-;; This code guesses the right compilation command when Emacs is asked
-;; to compile the contents of a buffer.  It bases this guess upon the
-;; filename extension of the file in the buffer.
+ ;; This code guesses the right compilation command when Emacs is asked
+ ;; to compile the contents of a buffer.  It bases this guess upon the
+ ;; filename extension of the file in the buffer.
 
-(defun compile-guess-command ()
+ (defun compile-guess-command ()
 
-  (let ((command-for-mode (cdr (assq major-mode
-				     compile-guess-command-table))))
-    (if (and command-for-mode
-	     (stringp buffer-file-name))
-	(let* ((file-name (file-name-nondirectory buffer-file-name))
-	       (file-name-sans-suffix (if (and (string-match "\\.[^.]*\\'"
-							     file-name)
-					       (> (match-beginning 0) 0))
-					  (substring file-name
-						     0 (match-beginning 0))
-					nil)))
-	  (if file-name-sans-suffix
-	      (progn
-		(make-local-variable 'compile-command)
-		(setq compile-command
-		      (if (stringp command-for-mode)
-			  ;; Optimize the common case.
-			  (format command-for-mode
-				  file-name file-name-sans-suffix)
-			(funcall command-for-mode
-				 file-name file-name-sans-suffix)))
-		compile-command)
-	    nil))
-      nil)))
+   (let ((command-for-mode (cdr (assq major-mode
+                                      compile-guess-command-table))))
+     (if (and command-for-mode
+              (stringp buffer-file-name))
+         (let* ((file-name (file-name-nondirectory buffer-file-name))
+                (file-name-sans-suffix (if (and (string-match "\\.[^.]*\\'"
+                                                              file-name)
+                                                (> (match-beginning 0) 0))
+                                           (substring file-name
+                                                      0 (match-beginning 0))
+                                         nil)))
+           (if file-name-sans-suffix
+               (progn
+                 (make-local-variable 'compile-command)
+                 (setq compile-command
+                       (if (stringp command-for-mode)
+                           ;; Optimize the common case.
+                           (format command-for-mode
+                                   file-name file-name-sans-suffix)
+                         (funcall command-for-mode
+                                  file-name file-name-sans-suffix)))
+                 compile-command)
+             nil))
+       nil)))
 
  
 ;; Add the appropriate mode hooks.
