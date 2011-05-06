@@ -67,10 +67,12 @@
   '(progn
      (add-to-list 'slime-lisp-implementations '(sbcl ("sbcl")))
      (require 'slime-fuzzy)
+     (require 'slime-banner)
      (setq
       slime-complete-symbol-function 'slime-fuzzy-complete-symbol
       slime-enable-evaluate-in-emacs t
       slime-fuzzy-completion-in-place t
+      slime-startup-animation t
       slime-use-autodoc-mode t)
 
     (define-key slime-mode-map (kbd "C-c s") 'slime-selector)
@@ -103,5 +105,6 @@
      (add-hook 'clojure-mode-hook (lambda () (slime-mode t)))))
 
 (add-hook 'scheme-mode-hook '(lambda () (paredit-mode 1)))
+(add-to-list 'interpreter-mode-alist '("jark" . clojure-mode))
 (provide 'starter-kit-lisp)
 ;; starter-kit-lisp.el ends here
