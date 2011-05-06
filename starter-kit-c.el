@@ -161,6 +161,7 @@ the character typed."
 (defun linux-c-mode ()
   "C mode with adjusted defaults for use with the Linux kernel."
   (interactive)
+  (which-func-mode t)
   (c-set-style "K&R")
   (setq tab-width 8)
   (setq indent-tabs-mode t)
