@@ -212,10 +212,6 @@
 
 (setq resize-mini-windows nil)
 
-(require 'twilight)
-(require 'color-theme-empty-void)
-(color-theme-empty-void)
-
 
 ;; (load "xterm-256color")
 
