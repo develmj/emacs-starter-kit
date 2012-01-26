@@ -22,7 +22,8 @@
                               'slime-repl
                               'lusty-explorer
                               'paredit
-                              'ruby-electric)
+                              'ruby-electric
+			      )
                               "Libraries that should be installed by default."
                               )
 
