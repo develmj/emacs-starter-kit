@@ -17,7 +17,7 @@
 (require 'jabber-alert)
 (require 'osd)
 
-(defun osd(message)
+(defun osd (message)
   "Display a message using the osd_cat program. "
   (osd-show-string-on-inherited-display message))
 
