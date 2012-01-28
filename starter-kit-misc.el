@@ -51,7 +51,7 @@
 (global-font-lock-mode t)
 
 ;; Save a list of recent files visited.
-(recentf-mode 1)
+(recentf-mode 0)
 
 ;; Highlight matching parentheses when the point is on them.
 (show-paren-mode 1)
