@@ -59,7 +59,8 @@
 (require 'starter-kit-ruby)
 (require 'starter-kit-js)
 (require 'starter-kit-vala)
-(require 'starter-kit-ocaml)
+                                        ;(require 'starter-kit-ocaml)
+(require 'ocamlr)
 (require 'starter-kit-jabber)
 (require 'starter-kit-bindings)
 
