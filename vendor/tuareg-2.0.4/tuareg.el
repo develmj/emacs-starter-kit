@@ -424,7 +424,7 @@ Valid names are `browse-url', `browse-url-firefox', etc."
 
 (defface tuareg-font-lock-governing-face
   '((((background light)) (:foreground "blue" :bold t))
-    (t (:foreground "#A80000")))
+    (t (:foreground "#CC3333")))
   "Face description for governing/leading keywords."
   :group 'tuareg-faces)
 (defvar tuareg-font-lock-governing-face
