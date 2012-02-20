@@ -1,12 +1,15 @@
+(setq load-path (cons "~/.emacs.d/vendor/tuareg-2.0.4/" load-path))
 
-(setq auto-mode-alist
-          (cons '("\\.ml[iyl]?$" .  caml-mode) auto-mode-alist))
+(add-to-list 'auto-mode-alist '("\\.ml[iylp]?" . tuareg-mode))
+(autoload 'tuareg-mode "tuareg" "Major mode for editing Caml code" t)
+(autoload 'camldebug "camldebug" "Run the Caml debugger" t)
 
+(add-to-list 'auto-mode-alist '("\\.ml[iylp]?" . tuareg-mode))
+(dolist (ext '(".cmo" ".cmx" ".cma" ".cmxa" ".cmi"))
+  (add-to-list 'completion-ignored-extensions ext))
 
-(setq load-path (cons "~/.emacs.d/vendor/ocaml" load-path))
-
-(autoload 'caml-mode "ocaml" (interactive)
-  "Major mode for editing Caml code." t)
-(autoload 'camldebug "camldebug" (interactive) "Debug caml mode")
+;; (autoload 'caml-mode "ocaml" (interactive)
+;;   "Major mode for editing Caml code." t)
+;; (autoload 'camldebug "camldebug" (interactive) "Debug caml mode")
 
 (provide 'starter-kit-ocaml)
