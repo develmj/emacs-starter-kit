@@ -1176,7 +1176,7 @@ Short cuts for interactions with the toplevel:
    `(,@(and (tuareg-editing-ls3)
             '(("\\<\\(let[ \t\n]+\\(clock\\|node\\|static\\)\\|present\\|automaton\\|where\\|match\\|with\\|do\\|done\\|unless\\|until\\|reset\\|every\\)\\>"
                0 tuareg-font-lock-governing-face nil nil)))
-     ("\\<\\(external\\|open\\|include\\|rule\\|s\\(ig\\|truct\\)\\|module\\|functor\\|with[ \t\n]+\\(type\\|module\\)\\|val\\|type\\|method\\|virtual\\|constraint\\|class\\|in\\|inherit\\|initializer\\|let\\|rec\\|object\\|and\\|begin\\|end\\)\\>"
+     ("\\<\\(external\\|open\\|include\\|rule\\|s\\(ig\\|truct\\)\\|module\\|functor\\|with[ \t\n]+\\(type\\|module\\)\\|val\\|type\\|method\\|virtual\\|constraint\\|class\\|in\\|inherit\\|initializer\\|let\\|rec\\|object\\|and\\|begin\\|value\\|end\\)\\>"
       0 tuareg-font-lock-governing-face nil nil)
      ,@(and tuareg-support-metaocaml
             '(("\\.<\\|>\\.\\|\\.~\\|\\.!"
