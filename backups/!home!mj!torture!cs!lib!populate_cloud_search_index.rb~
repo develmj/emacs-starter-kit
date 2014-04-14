@@ -1,0 +1,20 @@
+require 'rubygems'
+
+ENV['RAILS_ENV'] = ARGV.first || ENV['RAILS_ENV'] || 'production'
+require File.expand_path(File.dirname(__FILE__) + "/../config/environment.rb")
+
+def populate_product_index
+  batch = AWSCloudSearch::DocumentBatch.new
+  Spree::ActiveSaleEvent.live_active.each{|x|
+    x.eventable.products.active.each{|y|
+      doc = AWSCloudSearch::Document.new(true)
+      doc.id = y.id.to_s
+      doc.lang = 'en'
+      doc.add_field('name', y.name)
+      doc.add_field('price',y.price.to_i.to_s)
+      doc.add_field('color',y.product_properties.where(:property_id => 10).last.try(&:value).to_s)
+      doc.add_field('description',y.description)
+      
+    }
+  }
+end

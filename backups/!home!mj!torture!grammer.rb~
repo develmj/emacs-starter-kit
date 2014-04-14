@@ -1,0 +1,39 @@
+
+invalid = []
+valid = []
+
+great_size_hash = {
+  "women/jewellery" =>["2", "2.2", "2.4", "2.6", "2.8", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"],
+  "women/lingerie" => ["30 B", "30 C", "30 D", "30 DD", "32 B", "32 C", "32 D", "32 DD", "34 B", "34 C", "34 D", "34 DD", "36 B", "36 C", "36 D", "36 DD", "38 B", "38 C", "38 D", "38 DD", "40 B", "40 C", "40 D", "40 DD", "42 B", "42 C", "42 D", "42 DD", "44 B", "44 C", "44 D", "44 DD", "46 B", "46 C", "46 D", "46 DD","XS", "XS-S", "S", "S-M", "M", "M-L", "L", "L-XL", "XL", "XL-XXL", "XXL", "XXL-XXXL", "XXXL"],
+  "women/swimwear" => ["30 B", "30 C", "30 D", "30 DD", "32 B", "32 C", "32 D", "32 DD", "34 B", "34 C", "34 D", "34 DD", "36 B", "36 C", "36 D", "36 DD", "38 B", "38 C", "38 D", "38 DD", "40 B", "40 C", "40 D", "40 DD", "42 B", "42 C", "42 D", "42 DD", "44 B", "44 C", "44 D", "44 DD", "46 B", "46 C", "46 D", "46 DD","XS", "XS-S", "S", "S-M", "M", "M-L", "L", "L-XL", "XL", "XL-XXL", "XXL", "XXL-XXXL", "XXXL"],
+  "women/footwear" => ["2 UK", "3 UK", "4 UK", "5 UK", "6 UK", "7 UK", "8 UK", "9 UK"],
+  "men/footwear" => ["6 UK", "7 UK", "8 UK", "9 UK", "10 UK", "11 UK", "12 UK"],
+  "men/apparel" => ["38", "39", "40", "42", "44", "46", "XS", "S", "M", "L", "XL", "XXL", "XXXL", "28", "30", "32", "34", "36"],
+  "women/western-apparel" => ["XS", "XS-S", "S", "S-M", "M", "M-L", "L", "L-XL", "XL", "XL-XXL", "XXL", "XXL-XXXL", "XXXL", "6 UK", "8 UK", "10 UK", "12 UK", "14 UK", "16 UK", "18 UK", "FS", "26", "28", "30", "32", "34", "36", "38"],
+  "women/ethnic-apparel" => ["FS"],
+  "women/ethnic-apparel" => ["XS", "XS-S", "S", "S-M", "M", "M-L", "L", "L-XL", "XL", "XL-XXL", "XXL", "XXL-XXXL", "XXXL"],
+}
+
+def get_cat(permalink)
+  return permalink.split("/")[2..3].join("/")
+end
+
+def sale_by_sale
+  valid_sales = great_size_hash.keys
+  Spree::ActiveSaleEvent.live_active.map{|x|
+    cat = get_cat(x.permalink)
+    if valid_sales.include?(cat)
+      valid_sizes = great_size_hash[cat]
+      x.eventable.each{|p|
+        begin
+          cur_sizes = p.variants.map{|y| y.option_values.last.presentation}.flatten.uniq.compact
+          if (cur_sizes - valid_sizes).empty?
+            valid << p.id
+          end
+        rescue Exception => e
+          
+        end
+      }
+    end
+end
+

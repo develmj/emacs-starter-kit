@@ -1,0 +1,16 @@
+require '/home/stlocal/smtp_tls.rb'
+require 'curb-fu'
+
+# Params
+GEN_FEED = ARGV[0] ? ARGV[0] : :all
+RSS_FILE = "/home/stlocal/cohort.rss"
+
+SMTP_PARAMS = {
+  :smtp_server => "smtp.gmail.com",
+  :smtp_port => 587,
+  :smtp_helo => "StyletagNotification",
+  :from_address => "notification@styletag.com",
+  :smtp_username => "notification@styletag.com",
+  :smtp_password => Base64.decode64("c3R5bGV0YWcxMjM=")
+}
+SEND_TO_ADDS = ARGV[3] ? [ARGV[3]] : ["mj.iyer@styletag.com","satish.singh@styletag.com","vivek.gatty@styletag.com"]

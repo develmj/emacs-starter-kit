@@ -1,0 +1,7 @@
+module Spree
+  module RecommenderHelper
+    def hello
+      puts "hello"
+    end
+  end
+end

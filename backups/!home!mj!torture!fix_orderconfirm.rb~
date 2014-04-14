@@ -1,0 +1,36 @@
+a = Spree::Order.where("cs_state like 'robot_caller' and created_at >= timestamp('2013-09-20')").map{|x| x unless OrderConfirmBuffer.find_by_order_id(x.id)}.compact
+a.each{|x|
+  b = OrderConfirmBuffer.new
+  b.order_id = x.id
+  b.order_number = x.number
+  b.phone_number = x.ship_address.phone
+  b.retry = x.comments.map{|x| x.content if x.content.include?("Customer did not receive the IVR call")}.compact.count
+  b.save
+}
+
+a= []
+Spree::ActiveSaleEvent.live.each{|x|
+  x.eventable.products.each{|y|
+    y.variants.each{|z|
+      if z.is_master == false
+        a << z if z.count_on_hand < 0
+      end
+    }
+  }
+}
+
+b = []
+a.each{|x|
+  y = Spree::LineItem.find_by_variant_id(x.id)
+  if y.order and y.order.payment
+    b << y if y.order.payment.payment_method_id == 6
+  end
+}
+
+c = []
+a.each{|x|
+  y = Spree::LineItem.find_by_id(Saledata.find_by_sku_code(x.sku).line_item_id)
+  if y and y.order and y.order.payment
+    c << y if y.order.payment.payment_method_id == 6
+  end
+}

@@ -1,0 +1,716 @@
+# -*- coding: utf-8 -*-
+require 'rubygems'
+require 'aws_cloud_search'
+
+ds = AWSCloudSearch::CloudSearch.new('mjdatabase-3halzwg5f36kfjhhg7lafgxqtm','ap-southeast-1')
+
+doc1 = AWSCloudSearch::Document.new(true)
+doc1.id = '1'
+doc1.lang = 'en'
+doc1.add_field('name', 'Bulchee Belts')
+doc1.add_field('id','1')
+doc1.add_field('color','red')
+doc1.add_field('description','this is a good belt')
+
+doc2 = AWSCloudSearch::Document.new(true)
+doc2.id = '2'
+doc2.lang = 'en'
+doc2.add_field('name', 'Myra Jackets')
+doc2.add_field('id','2')
+doc2.add_field('color','blue')
+doc2.add_field('description','this is a good jacket')
+
+doc4 = AWSCloudSearch::Document.new(true)
+doc4.id = '3'
+doc4.lang = 'en'
+doc4.add_field('name', 'Dolce and Gabanna')
+doc4.add_field('id','3')
+doc4.add_field('color','blue')
+doc4.add_field('description','this is a good bag')
+batch.add_document doc4
+ds.documents_batch(batch)
+
+
+batch = AWSCloudSearch::DocumentBatch.new    
+batch.add_document doc1
+batch.add_document doc2
+
+
+ds.documents_batch(batch)
+
+
+
+
+
+def populate_size_map
+  s= {}
+  Spree::ActiveSaleEvent.live_active.each{|x|
+    x.eventable.products.active.each{|y|
+      y.option_values.each{|z|
+        if s[z.presentation.downcase]
+          s[z.presentation.downcase] = s[z.presentation.downcase] + [y.id].to_set
+        else
+          s[z.presentation.downcase] = [y.id].to_set
+        end
+      }
+    }
+  }
+end
+
+def populate_color_map
+  s= {}
+  Spree::ActiveSaleEvent.live_active.each{|x|
+    x.eventable.products.active.each{|y|
+      y.product_properties.where(:property_id => 10).each{|z|
+        if s[z.value.downcase]
+          s[z.value.downcase] = s[z.value.downcase] + [y.id].to_set
+        else
+          s[z.value.downcase] = [y.id].to_set
+        end
+      }
+    }
+  }
+  return s
+end
+
+def fetch_size_map(prod_array)
+  
+end
+
+def get_size_map(product_ids)
+  return [] unless product_ids.is_a?(Array)
+  return [] if product_ids.empty?
+  elasticache = Redis.new(:host => "stsizecache.vz0xqg.0001.apse1.cache.amazonaws.com", :port => 6379, :driver => :hiredis)
+  keys = elasticache.keys
+  ret = {}
+  product_ids.each{|x|
+    begin
+      y = elasticache.get(x)
+      if y
+        JSON.parse(y).each{|size|
+          if ret[size]
+            ret[size] << x
+          else
+            ret[size] = [x]
+          end
+        }
+      end
+    rescue Exception => e
+    end
+  }
+  return ret
+end
+
+
+
+def uncancel_orders(order_id)
+  return {:state => nil, :comment => "<strong>Sorry! No orders were given to be uncanceled</strong>"} if order_id.blank?
+  result = ["<table border='1'>","<tr><td><strong>Order ID</strong></td><td><strong>Status</strong></td></tr>"]
+  order_id.each{|x|
+    begin
+      o = Spree::Order.find(x)
+      if o
+        li = o.line_items
+        workable = true
+        li.each{|x|
+          v = x.variant
+          needed = x.quantity
+          if (v.count_on_hand - needed) < 0
+            result << "<tr><td>#{o.id}</td><td>Failed due to insufficiant stock of SKU: #{v.sku}</td></tr>"
+            workable = nil
+            next
+          end
+        }
+        if workable
+          li.each{|x|
+            v = x.variant
+            v.count_on_hand = v.count_on_hand - x.quantity
+            v.save
+          }
+          o.state = "complete"
+          o.cs_state = "order_confirm"
+          o.save
+          result << "<tr><td>#{o.id}</td><td>Success</td></tr>"
+        end
+      else
+        result << "<tr><td>#{x}</td><td>Could not find the order!</td></tr>"
+      end
+    rescue Exception => e
+      result << "<tr><td>#{x}</td><td>Failed due to major error!</td></tr>"
+    end
+  }
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def populate_product_index
+  color_id = Spree::Property.find_by_name("color").try(&:id)
+  detail_id = Spree::Property.find_by_name("detail").try(&:id)
+  gender_id = Spree::Property.find_by_name("gender").try(&:id)
+  material_id = Spree::Property.find_by_name("material").try(&:id)
+  color_family_id = Spree::Property.find_by_name("color family").try(&:id)
+
+  docs = []
+  
+  Spree::ActiveSaleEvent.live_active.each{|x|
+    x.eventable.products.active.each{|y|
+      docs << { :docid => y.id.to_s,
+        :fields => {
+          :id => y.id.to_s,
+          :name => y.name,
+          :price => y.price.to_i,
+          :color => y.product_properties.where(:property_id => color_id).last.try(&:value).to_s,
+          :description => y.description.to_s,
+          :detail => y.product_properties.where(:property_id => detail_id).last.try(&:value).to_s,
+          :gender => y.product_properties.where(:property_id => gender_id).last.try(&:value).to_s,
+          :material => y.product_properties.where(:property_id => material_id).last.try(&:value).to_s,
+          :sale => x.name.to_s,
+          :express => y.variants.last.ship_configuration_id == 11 ? "yes" : "no" ,          
+        }
+      }
+    }
+  }
+
+  response = index.batch_insert(docs)
+
+  failed_documents = []
+  response.each_with_index do |r, i|
+    failed_documents << documents[i] unless r['added']
+  end
+
+end
+
+ret << [sku,name,size,volume,gender,material,composition,hardware details,color,description,use with,caution,detail]
+color_id = Spree::Property.find_by_name("color").try(&:id)
+detail_id = Spree::Property.find_by_name("detail").try(&:id)
+gender_id = Spree::Property.find_by_name("gender").try(&:id)
+material_id = Spree::Property.find_by_name("material").try(&:id)
+composition_id = Spree::Property.find_by_name("composition").try(&:id)
+caution_id = Spree::Property.find_by_name("caution").try(&:id)
+hardware_id = Spree::Property.find_by_name("hardware details").try(&:id)
+usewith_id = Spree::Property.find_by_name("use with").try(&:id)
+
+a.each{|x|
+  s1 = Spree::Variant.find_by_sku(x)
+  if s1
+    y = s1.product
+    ret << [x,
+            s1.name,
+            s1.option_values.where(:option_type_id => 1).last.try(&:presentation).to_s,#size
+            s1.option_values.where(:option_type_id => 2).last.try(&:presentation).to_s,#volume
+            y.product_properties.where(:property_id => gender_id).last.try(&:value).to_s,#gender
+            y.product_properties.where(:property_id => material_id).last.try(&:value).to_s,#material
+            y.product_properties.where(:property_id => composition_id).last.try(&:value).to_s,#composition
+            y.product_properties.where(:property_id => hardware_id).last.try(&:value).to_s,#hardware details
+            y.product_properties.where(:property_id => color_id).last.try(&:value).to_s,#color
+            y.description.to_s,#description
+            y.product_properties.where(:property_id => usewith_id).last.try(&:value).to_s,#use with
+            y.product_properties.where(:property_id => caution_id).last.try(&:value).to_s,#caution
+            y.product_properties.where(:property_id => detail_id).last.try(&:value).to_s,#detail
+           ]
+  end
+}
+
+f = File.open("/home/ubuntu/clearance.csv","w")
+f.write(ret.map{|x| x.map{|y| "\"#{y}\""}.join(",")}.join("\n"))
+f.close
+
+
+b = Spree::Taxon.find(4793).products
+b.each{|x|
+  h = {}
+  l = x.images
+  l.each{|y| h[y.attachment_file_name] = y}
+  rem = l - h.values
+  unless rem.count == 0
+    rem.each{|z|
+      x.images.delete(z)
+    }
+  end
+}
+
+
+
+a = ["t/designers/women/western-apparel/party-collection-by-vero-couture", "t/designers/women/western-apparel/party-closet-by-vero-couture", "t/designers/women/lingerie/sunny-side-up-by-vero-couture", "t/designers/women/footwear/fascino", "t/designers/women/jewellery/bijou-amour-jan", "t/designers/women/western-apparel/top-tales-by-vero-couture", "t/designers/women/western-apparel/top-tales-by-vero-couture", "t/designers/women/western-apparel/tees-and-hoodies-by-vero-couture", "t/designers/women/handbags/covetable-classics-by-ella-bags", "t/designers/women/western-apparel/shake-a-leg-by-vero-couture", "t/designers/women/accessories/hatville-by-vero-couture", "t/designers/women/jewellery/accessories-by-bijou-amour", "t/designers/women/handbags/evening-arsenal-by-ella-bags", "t/designers/women/western-apparel/bottoms-up-by-vero-couture", "t/designers/women/western-apparel/shake-a-leg-by-vero-couture"]
+v = []
+a.each{|x|
+  v << [x,Spree::ActiveSaleEvent.find_by_permalink(x).eventable.products.map{|x| x.variants.map(&:id)}.flatten]
+}
+res = []
+v.each{|x|
+  sale = x[0]
+  history = []
+  x[1].each{|y|
+    history << Spree::LineItem.find_all_by_variant_id(y)
+  }
+  history = history.flatten
+  res << [sale,history]
+}
+
+data = []
+
+res.each{|x|
+  ab = 0
+  bo = 0
+  x[1].each{|y|
+    o = y.order
+    if y
+      if o.state == "complete" or o.state == "canceled"
+        bo += y.quantity
+      else
+        ab += y.quantity
+      end
+    end
+  }
+  data << [x[0],ab,bo]
+}
+
+data = [
+        ["t/designers/women/western-apparel/party-collection-by-vero-couture",170,65],
+        ["t/designers/women/western-apparel/party-closet-by-vero-couture", 181, 61],
+        ["t/designers/women/lingerie/sunny-side-up-by-vero-couture", 22, 15],
+        ["t/designers/women/footwear/fascino", 1216, 408],
+        ["t/designers/women/jewellery/bijou-amour-jan", 47, 7],
+        ["t/designers/women/western-apparel/top-tales-by-vero-couture", 204, 78],
+        ["t/designers/women/western-apparel/top-tales-by-vero-couture", 204, 78],
+        ["t/designers/women/western-apparel/tees-and-hoodies-by-vero-couture",49,17],
+        ["t/designers/women/handbags/covetable-classics-by-ella-bags", 137, 54],
+        ["t/designers/women/western-apparel/shake-a-leg-by-vero-couture", 339, 187],
+        ["t/designers/women/accessories/hatville-by-vero-couture", 0, 1],
+        ["t/designers/women/jewellery/accessories-by-bijou-amour", 128, 71],
+        ["t/designers/women/handbags/evening-arsenal-by-ella-bags", 61, 50],
+        ["t/designers/women/western-apparel/bottoms-up-by-vero-couture", 49, 30],
+        ["t/designers/women/western-apparel/shake-a-leg-by-vero-couture", 339, 187]
+       ]
+
+
+["t/designers/women/handbags/evening-arsenal-by-ella-bags","t/designers/women/handbags/covetable-classics-by-ella-bags","t/designers/men/accessories/hi-design-men","t/designers/women/jewellery/accessories-by-bijou-amour","t/designers/women/jewellery/bijou-amour-jan"].each{|sale|
+  old = Spree::OptionValue.find(12)
+  new = Spree::OptionValue.find(16)
+  Spree::ActiveSaleEvent.find_by_permalink(sale).eventable.products.each{|x|
+    if x.variants.count == 1 and x.option_values.include?(old)
+      x.option_values << new
+      x.variants.last.option_values << new
+      x.option_values.delete(old)
+      x.variants.last.option_values.delete(old)
+    end
+  }
+}
+
+
+
+img_wa = []
+img_foot = []
+img_hb = []
+Spree::Order.where("(state like 'complete' or state like 'canceled') and completed_at >? ",Time.now - 6.months).each{|x|
+  x.line_items.each{|y|
+    begin
+      p = y.variant.product
+      t = p.taxons.last
+      cat = t.try(&:ancestors).map(&:name)
+      cat = cat.to_s.downcase
+      if cat.include?("western apparel")
+        img_wa << p.images.last.attachment.url.gsub('http://s3.amazonaws.com/','').gsub('attachments','products')
+      elsif cat.include?("footwear")
+        img_foot << p.images.last.attachment.url.gsub('http://s3.amazonaws.com/','').gsub('attachments','products')
+      elsif cat.include?("handbags")
+        img_hb << p.images.last.attachment.url.gsub('http://s3.amazonaws.com/','').gsub('attachments','products')
+      end
+    rescue
+    end
+  }
+}
+
+
+
+o = Spree::Order.select("user_id,total").where("state like 'complete' and cs_state not like 'initiate_cancel' and completed_at between ? and ? ",(DateTime.now.beginning_of_month - 5.hours - 30.minutes),(DateTime.now.end_of_month - 5.hours - 30.minutes))
+u = {}
+o.each{|x|
+  if u[x.user_id]
+    u[x.user_id][0] += 1
+    u[x.user_id][1] += x.total.to_f
+  else
+    u[x.user_id] = [1,x.total.to_f]
+  end
+}
+
+ret = u.to_a.sort{|x,y| x[1][1] <=> y[1][1]}.reverse[0..19]
+
+rets = ret.map{|x|
+  s = Spree::User.find(x[0])
+  [s.firstname.split(" ").map{|y| y.capitalize}.join(" "),x[1][1]]
+}
+
+
+a = {}
+while a.keys.count < 10000
+  r = rand(100000)
+  unless a[r]
+    a[r] = true if r > 10000
+  end
+end
+code_suffixes = a.keys
+
+
+file=File.open("codes_for_paytm.csv", "a")  
+file.puts "Start Time --" +  Time.now.to_s
+count = 0
+code_suffixes.each do |suffix|
+
+  code = "MYSTYLE1" + suffix.to_s
+  promotion = Spree::Promotion.create({:name => "#{code}", :code => "#{code}", :event_name => "spree.checkout.coupon_code_added", :type => "Spree::Promotion", :usage_limit => 1, :match_policy => "all",:starts_at => Time.parse("2014-02-28 21:59:59"), :expires_at => Time.parse("2014-03-31 23:59:59")}, :without_protection => true)
+  promotion_action = promotion.actions.create({:type => "Spree::Promotion::Actions::CreateAdjustment"}, :without_protection => true)
+  calc = Spree::Calculator.create({:type => "Spree::Calculator::FlatPercentItemTotal", :calculable_id => promotion_action.id, :calculable_type => "Spree::PromotionAction"},:without_protection => true)	
+  promo = Spree::Promotion.find(promotion.id)
+  promo.rules.delete_all
+  promo.actions.last.calculator.prefers_flat_percent = 30
+  file.puts "#{promotion.id}, #{code}"
+  count = count + 1
+  break if count == 10000
+end
+file.puts "End Time --" + Time.now.to_s
+file.close
+puts "done"
+
+
+
+
+["SL", "Product ID", "Event Name", "Image", "Sizes Given", "Color family given", "Product Type Given", "Edit Link", "Event owner", "Allocated to ", "Issues", "Issues", "Issues", "To be rectified by", "PRODUCT TYPE", "colors", "Sizes"]
+==========================
+
+require 'csv'
+a = CSV.read("final.csv")
+
+great_producttype_hash = {"clocks"=>true, "tableware"=>true, "curtains"=>true, "candles & fragrances"=>true, "weight scale"=>true, "laptop skins "=>true, "bath linen"=>true, "drinkware"=>true, "organisers"=>true, "lamps & lighting"=>true, "cookware"=>true, "cushions & cushion covers"=>true, "desk accessories"=>true, "health monitors"=>true, "phone covers"=>true, "shower curtains"=>true, "bar tools"=>true, "gardening accessories"=>true, "wall shelves"=>true, "kitchen storage"=>true, "bed sheets & bedspreads"=>true, "envelopes"=>true, "mouse pads"=>true, "bathroom accessories"=>true, "laundry baskets"=>true, "wall décor"=>true, "kitchen tools"=>true, "rugs & carpets"=>true, "usbs"=>true, "bathroom fixtures"=>true, "ironing table"=>true, "vases & flowers"=>true, "linen"=>true, "doormats"=>true, "headphones"=>true, "tools"=>true, "showpieces"=>true, "tea & coffee"=>true, "quilts & blankets"=>true, "ladders"=>true, "spiritual products"=>true, "clothes dryer"=>true, "shoe rack"=>true, "dresses"=>true, "tops"=>true, "jeans & jeggings"=>true, "skirts & shorts"=>true, "trousers & leggings"=>true, "jumpsuits"=>true, "shrugs & jackets"=>true, "sweater & hoodies"=>true, "lingerie & sleepwear"=>true, "resort & swimwear"=>true, "sarees"=>true, "stitched kurta set"=>true, "unstitched kurta set"=>true, "semi-stitched kurta set"=>true, "kurtas"=>true, "lehengas"=>true, "blouses"=>true, "bottomwear"=>true, "dupattas & shawls"=>true, "shirts"=>true, "tees & t-shirts"=>true, "jeans"=>true, "shorts  "=>true, "trousers & chinos"=>true, "jackets & coats"=>true, "sweaters & hoodies"=>true, "suits"=>true, "innerwear"=>true, "wristwear"=>true, "earrings"=>true, "neckwear"=>true, "rings"=>true, "brooches & pins"=>true, "jewellery sets"=>true, "anklets"=>true, "head jewellery"=>true, "belts"=>true, "watches"=>true, "hats & caps"=>true, "stoles & scarves"=>true, "hair accessories"=>true, "sunglasses & optics"=>true, "cufflinks & ties"=>true, "socks"=>true, "other accessories"=>true, "totes & shoulder bags"=>true, "purses & clutches"=>true, "slings"=>true, "travel bags"=>true, "laptop bags & cases"=>true, "wallets & pouches"=>true, "flat shoes"=>true, "heels"=>true, "boots & booties"=>true, "wedges"=>true, "oxfords"=>true, "formal shoes"=>true, "casual shoes"=>true, "eau de parfum"=>true, "eau de toilette"=>true, "eau de cologne"=>true, "cologne splash"=>true, "deodorant spray"=>true, ""=>true, "n/a"=>true, "bean bags"=>true, "stationery"=>true, "knick knacks"=>true, "respiratory care"=>true, "pain management"=>true, "laptop skins"=>true, "mouse & mouse pads"=>true, "headphones & speakers"=>true, "bathroom cabinets"=>true, "grooming"=>true}
+
+great_colorfamily_hash = {"white"=>true, "black"=>true, "blue"=>true, "yellow"=>true, "red"=>true, "green"=>true, "pink"=>true, "orange"=>true, "purple"=>true, "grey"=>true, "brown"=>true, "gold"=>true, "silver"=>true, "bronze"=>true, "multi"=>true, "print"=>true, "cream"=>true, "rose gold"=>true}
+
+final = []
+wrong = []
+a.shift
+a.each{|x|
+  w_pt = great_producttype_hash[x[11].to_s.downcase]
+  w_cf = great_colorfamily_hash[x[12].to_s.downcase]
+  unless w_pt and w_cf
+    wrong << x
+  else
+    final << x
+  end
+}
+wrong_sz = []
+a.each{|x|
+  if x[4] != x[16]
+    if (x[16].to_s.downcase == "n/a" or x[16].to_s.downcase == "") and (x[4].to_s.downcase != "n/a" or x[4].to_s.downcase != "")
+      wrong_sz << x
+    elsif (x[16].to_s.downcase != "n/a" or x[16].to_s.downcase != "") and (x[4].to_s.downcase == "n/a" or x[4].to_s.downcase == "")
+      wrong_sz << x
+    end
+  end
+}
+
+wrong_sz = wrong_sz.select{|x| x unless ["","n/a","na"].include?(x[16].to_s.downcase)}
+final = a - (wrong + wrong_sz).uniq
+
+size_changes = final.select{|x| x if x[4] != x[16] and ["","n/a","na"].include?(x[16].to_s.downcase) != true}
+wrong_size_changes = size_changes.select{|x|  x if x[4].split(";").count != x[16].split(";").count }
+wrong_sz = wrong_sz + wrong_size_changes
+
+size_changes = size_changes - wrong_size_changes
+prop_changes = final - size_changes
+
+color_family_id = Spree::Property.find_by_name("color family").try(&:id)
+product_type_id = Spree::Property.find_by_name("product type").try(&:id)
+
+prop_changes_failed = []
+prop_changes.each{|x|
+  begin
+    p = Spree::Product.find_by_id(x[1])
+    if p
+      if x[5].downcase != x[15] and ["","n/a","na"].include?(x[15].to_s.downcase) != true
+        cur_color = p.product_properties.where(:property_id => color_family_id).last
+        if cur_color
+          cur_color.update_attributes({:value => x[15].to_s.gsub(/\b\w/){$&.upcase}},:without_protection => true)
+        else
+          cur_color = Spree::ProductProperty.new
+          cur_color.product_id = x[1].to_i
+          cur_color.property_id = color_family_id
+          cur_color.value = x[15].to_s.gsub(/\b\w/){$&.upcase}
+          cur_color.save
+        end
+      end
+
+      if x[6].downcase != x[14] and ["","n/a","na"].include?(x[14].to_s.downcase) != true
+        cur_ptype = p.product_properties.where(:property_id => product_type_id).last
+        if cur_ptype
+          cur_ptype.update_attributes({:value => x[14].to_s.gsub(/\b\w/){$&.upcase}},:without_protection => true)
+        else
+          cur_ptype = Spree::ProductProperty.new
+          cur_ptype.product_id = x[1].to_i
+          cur_ptype.property_id = product_type_id
+          cur_ptype.value = x[14].to_s.gsub(/\b\w/){$&.upcase}
+          cur_ptype.save
+        end
+      end
+    else
+      prop_changes_failed << x
+    end
+  rescue Exception => e
+    prop_changes_failed << x
+  end
+}
+
+#Create new sizes
+all_sizes = size_changes.map{|x| x[16].split(";")}.flatten.map{|x| x.strip}.uniq
+
+#Create those sizes which dont exist
+sz_hash = {}
+all_sizes.map{|x| sz_hash[x] = Spree::OptionValue.find_by_presentation(x)}
+sz_hash.keys.map{|x| x unless sz_hash[x]}.compact.uniq.each{|x|
+  s = Spree::OptionValue.new
+  s.option_type_id = 1
+  s.name = x
+  s.presentation = x
+  s.position = Spree::OptionValue.last.position + 1
+  s.save
+}
+
+sz_hash = {}
+all_sizes.map{|x| sz_hash[x] = Spree::OptionValue.find_by_presentation(x)}
+
+size_change_failed = []
+size_changes.each{|x|
+  begin
+    old = x[4].split(";").map{|y| y.strip}
+    new = x[16].split(";").map{|y| y.strip}
+    if old.count == new.count
+      temp_h = {}
+      old.each_index{|y| temp_h[old[y]] = new[y]}
+      p = Spree::Product.find_by_id(x[1])
+      if p
+        p.variants.each{|z|
+          t = z.option_values.last
+          n = sz_hash[temp_h[t.presentation]]
+          if n
+            z.option_values << n
+            p.option_values << n
+            z.option_values.delete(t)
+            p.option_values.delete(t)
+          else
+            size_change_failed << x
+          end
+        }
+      else
+        size_change_failed << x
+      end
+    else
+      size_change_failed << x
+    end
+  rescue Exception => e
+    size_change_failed << x
+  end
+}
+
+
+def foo(skus)
+  color_family_id = Spree::Property.find_by_name("color family").try(&:id)
+  product_type_id = Spree::Property.find_by_name("product type").try(&:id)
+  color_id = Spree::Property.find_by_name("color").try(&:id)
+  ret = [["Item Code","Item Name","MRP","DMRP","Product Type","Color","Color Family","Description"]]
+  skus.each{|x|
+    begin
+      v = Spree::Variant.find_by_sku(x)
+      p = v.product
+      ret << [x,p.name,p.cost_price,p.price,p.product_properties.where(:property_id => product_type_id).last.try(&:value).to_s,p.product_properties.where(:property_id => color_family_id).last.try(&:value).to_s,p.product_properties.where(:property_id => color_id).last.try(&:value).to_s,p.description]
+    rescue Exception => e
+      ret << []
+    end
+  }
+  f = File.open("/home/ubuntu/j.csv","w")
+  f.write(ret.map{|x| x.join(",")}.join("\n"))
+  f.close
+end
+
+
+
+
+def get_components(search_term)
+  occasion_hash = {"evening"=>true, "cocktail"=>true, "prom"=>true, "casual"=>true, "formal"=>true, "maternity"=>true, "work"=>true, "holiday"=>true, "festive"=>true}
+  color_hash = {"white"=>true, "black"=>true, "blue"=>true, "yellow"=>true, "red"=>true, "green"=>true, "pink"=>true, "orange"=>true, "purple"=>true, "grey"=>true, "brown"=>true, "gold"=>true, "silver"=>true, "bronze"=>true, "multi"=>true, "print"=>true, "cream"=>true, "rose gold"=>true}
+  ptype_hash = {"clocks"=>true, "tableware"=>true, "curtains"=>true, "candles & fragrances"=>true, "weight scale"=>true, "laptop skins"=>true, "bath linen"=>true, "drinkware"=>true, "organisers"=>true, "lamps & lighting"=>true, "cookware"=>true, "cushions & cushion covers"=>true, "desk accessories"=>true, "health monitors"=>true, "phone covers"=>true, "shower curtains"=>true, "bar tools"=>true, "gardening accessories"=>true, "wall shelves"=>true, "kitchen storage"=>true, "bed sheets & bedspreads"=>true, "envelopes"=>true, "mouse pads"=>true, "bathroom accessories"=>true, "laundry baskets"=>true, "wall décor"=>true, "kitchen tools"=>true, "rugs & carpets"=>true, "usbs"=>true, "bathroom fixtures"=>true, "ironing table"=>true, "vases & flowers"=>true, "linen"=>true, "doormats"=>true, "headphones"=>true, "tools"=>true, "showpieces"=>true, "tea & coffee"=>true, "quilts & blankets"=>true, "ladders"=>true, "spiritual products"=>true, "clothes dryer"=>true, "shoe rack"=>true, "dresses"=>true, "tops"=>true, "jeans & jeggings"=>true, "skirts & shorts"=>true, "trousers & leggings"=>true, "jumpsuits"=>true, "shrugs & jackets"=>true, "sweater & hoodies"=>true, "lingerie & sleepwear"=>true, "resort & swimwear"=>true, "sarees"=>true, "stitched kurta set"=>true, "unstitched kurta set"=>true, "semi-stitched kurta set"=>true, "kurtas"=>true, "lehengas"=>true, "blouses"=>true, "bottomwear"=>true, "dupattas & shawls"=>true, "shirts"=>true, "tees & t-shirts"=>true, "jeans"=>true, "shorts"=>true, "trousers & chinos"=>true, "jackets & coats"=>true, "sweaters & hoodies"=>true, "suits"=>true, "innerwear"=>true, "wristwear"=>true, "earrings"=>true, "neckwear"=>true, "rings"=>true, "brooches & pins"=>true, "jewellery sets"=>true, "anklets"=>true, "head jewellery"=>true, "belts"=>true, "watches"=>true, "hats & caps"=>true, "stoles & scarves"=>true, "hair accessories"=>true, "sunglasses & optics"=>true, "cufflinks & ties"=>true, "socks"=>true, "other accessories"=>true, "totes & shoulder bags"=>true, "purses & clutches"=>true, "slings"=>true, "travel bags"=>true, "laptop bags & cases"=>true, "wallets & pouches"=>true, "flat shoes"=>true, "heels"=>true, "boots & booties"=>true, "wedges"=>true, "oxfords"=>true, "formal shoes"=>true, "casual shoes"=>true, "eau de parfum"=>true, "eau de toilette"=>true, "eau de cologne"=>true, "cologne splash"=>true, "deodorant spray"=>true, ""=>true, "n/a"=>true, "bean bags"=>true, "stationery"=>true, "knick knacks"=>true, "respiratory care"=>true, "pain management"=>true, "mouse & mouse pads"=>true, "headphones & speakers"=>true, "bathroom cabinets"=>true, "grooming"=>true}
+  components = search_term.split(" ").compact.uniq.reject{|x| x if x.empty?}
+  occasions = []
+  colors = []
+  ptypes = []
+  unknow = []
+  components.each{|x|
+    occasions << x if occasion_hash[x]
+    colors << x if color_hash[x]
+    ptypes << x if ptype_hash[x]
+  }
+  if occasions.count >= 1
+    puts "more occasions"
+  end
+  if colors.count >= 1
+    puts "more occasions"
+  end
+  if ptypes.count >= 1
+    puts "more occasions"
+  end
+end
+
+
+ph = {}
+
+a.each{|x|
+  v = Spree::Variant.find_by_sku_and_is_master(x[0],false)
+  if v
+    p = v.product
+    if ph[p]
+      ph[p] = ph[p] + [v,x[1]]
+    else
+      ph[p] = [[v,x[1]]]
+    end
+  end
+}
+
+ph.keys.each{|x|
+  vs = x.variants
+  vs = [] unless vs
+  vs = vs.compact
+  
+  vh = ph[x]
+  vh.each{|y|
+    v = y[0]
+#    v.count_on_hand = y[1].to_i
+#    v.save
+    vs.delete(v)
+  }
+
+  vs.each{|y|
+    y.count_on_hand = 0
+    y.save
+  }
+}
+
+h = {1 => {:price => 1234,:color => "blue",:sizes => ["xl","l","m"],:ptype => "tops",:delivery => true}, 2 => {:price => 3124, :color => "red",:sizes => ["xl","l"],:ptype => "bottoms",:delivery => nil}}
+
+
+
+
+sizes = [
+         ["N/A", "2", "2.2", "2.4", "2.6", "2.8", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19"],
+         ["N/A", "28 A", "28 B", "28 D", "28 DD", "28 E", "28 G", "30 A", "30 B", "30 C", "30 D", "30 AA", "30 DD", "30 E", "30 F", "30 FF", "30 G", "30 H", "30 HH", "30 J", "32 A", "32 B", "32 C", "32 D", "32 DD", "32 AA", "32 GG", "32 E", "32 F", "32 FF", "32 G", "32 H", "32 HH", "32 J", "34 A", "34 B", "34 C", "34 D", "34 DD", "34 E", "34 F", "34 FF", "34 G", "34 GG", "36 A", "36 B", "36 C", "36 D", "36 DD", "36 E", "36 F", "36 FF", "36 G", "36 GG", "36 H", "36 HH", "36 J", "38 A", "38 B", "38 C", "38 D", "38 DD", "38 E", "38 F", "38 FF", "38 G", "38 GG", "38 H", "40 B", "40 C", "40 D", "40 DD", "40 E", "40 F", "40 FF", "40 G", "40 GG", "40 H", "42 B", "42 C", "42 D", "42 DD", "42 E", "42 F", "42 FF", "42 G", "42 GG", "42 H", "44 B", "44 C", "44 D", "44 DD", "44 E", "44 F", "44 FF", "XS", "XS-S", "S", "S-M", "M", "M-L", "L", "L-XL", "XL", "XL-XXL", "XXL", "XXL-XXXL", "XXXL"],
+         ["N/A", "28 A", "28 B", "28 D", "28 DD", "28 E", "28 G", "30 A", "30 B", "30 C", "30 D", "30 AA", "30 DD", "30 E", "30 F", "30 FF", "30 G", "30 H", "30 HH", "30 J", "32 A", "32 B", "32 C", "32 D", "32 DD", "32 AA", "32 GG", "32 E", "32 F", "32 FF", "32 G", "32 H", "32 HH", "32 J", "34 A", "34 B", "34 C", "34 D", "34 DD", "34 E", "34 F", "34 FF", "34 G", "34 GG", "36 A", "36 B", "36 C", "36 D", "36 DD", "36 E", "36 F", "36 FF", "36 G", "36 GG", "36 H", "36 HH", "36 J", "38 A", "38 B", "38 C", "38 D", "38 DD", "38 E", "38 F", "38 FF", "38 G", "38 GG", "38 H", "40 B", "40 C", "40 D", "40 DD", "40 E", "40 F", "40 FF", "40 G", "40 GG", "40 H", "42 B", "42 C", "42 D", "42 DD", "42 E", "42 F", "42 FF", "42 G", "42 GG", "42 H", "44 B", "44 C", "44 D", "44 DD", "44 E", "44 F", "44 FF", "XS", "XS-S", "S", "S-M", "M", "M-L", "L", "L-XL", "XL", "XL-XXL", "XXL", "XXL-XXXL", "XXXL"],
+         ["N/A", "2 UK", "3 UK", "4 UK", "5 UK", "6 UK", "7 UK", "8 UK", "9 UK"],
+         ["N/A", "6 UK", "7 UK", "8 UK", "9 UK", "10 UK", "11 UK", "12 UK"],
+         ["N/A", "38", "39", "40", "42", "44", "46", "XS", "S", "M", "L", "XL", "XXL", "XXXL", "28", "30", "32", "34", "36"],
+         ["N/A", "XS", "XS-S", "S", "S-M", "M", "M-L", "L", "L-XL", "XL", "XL-XXL", "XXL", "XXL-XXXL", "XXXL", "6 UK", "8 UK", "10 UK", "12 UK", "14 UK", "16 UK", "18 UK", "FS", "26", "28", "30", "32", "34", "36", "38"],
+         ["N/A", "XS", "XS-S", "S", "S-M", "M", "M-L", "L", "L-XL", "XL", "XL-XXL", "XXL", "XXL-XXXL", "XXXL"]]
+
+
+s = ["M", "L", "S", "36", "40", "39", "38", "37", "35", "XS", "XL", "FS", "42", "JSBZF0255", "44", "N/A", "+ACI-S+ACI-", "+ACI-XL+ACI-", "+ACI-L+ACI-", "+ACI-M+ACI-", "+ACI-XS+ACI-", "MM", "LR", "80ML", "85ML", "100ML", "75ML", "125ML", "165 gm", "75 gm", "99 gm", "100 ml", "200 ml", "171 gm", "103 ml", "365 ml", "190 gm", "2/12", "28", "30", "110x100mmeach", "180x100mm", "180x100mmeach", "100x85mmeach", "125x45x25mm", "165x100mmeach", "130x95mmeach", "200x230mm", "250x140x80mm ", "325x325mm", "325x325mmeach", "295x380mm", "XXL", "SM", "ML", "NA", "32 C", "32 D", "34 B", "34 D", "36 B", "36 C", "36 D", "38 B", "38 D", "34 C", "38 C", "40 B", "40 C", "5", "5.5", "7", "4.5", "6.5", "7.5", "8", "9", "10", "10.5", "11", "Small", "165gm", "75gm", "99gm", "200ml", "3x150gm", "56gm", "171gm", "103ml", " FS ", "35cm(Height)X50cm(Width)", "34", "26", "32", "60x90cm", "50x80cm", "50x80 cm", "60x120cm", "80cmdiameter", "60x100cm", "55x85cm", "4", "6", "XXS", "S-M", "M-L", "40X60CM", "1x100g", "2x150g", "3x100g", "3x50g", "250ml", "300ml", "30g", "200g", "50ml", "150ml", "80X50cm", "Free", "4-6", "3x150 gm", "56 gm", "41", "Adjustable to all sizes", "36 E", "36 F", "38 E", "38 F", "40 D", "40 E", "40 F", "42 C", "42 D", "42 E", "32 B", "34 A", "34 E", "34DD", "36DD", "1X", "7x10Inch", "9x6Inch", "5.5x9Inch", "4x7Inch", "5x8Inch", "5x11Inch", "5x9Inch", "6X10Inch", "4x9Inch", "4x10Inch", "38.0", "38.5", "36.0", "37.5", "39.0", "40.0", "35.0", "35.5", "37.0", "13Inches", "15Inches", "17Inches", "65ml", "60ml", "90ml", "4Inch", "6Inch", "8Inch", "10X5X2Inch", "12X7Inch", "10X7X2Inch", "9Inch", "11Inch", "10Inch", "10X5X4Inch", "174cm", "172cm", "148cm", "168cm", "149cm", "146cm", "177cm", "169cm", "10lX4wX1.5h", "6.5lX2wX3.5", "7X1.5wX3.6h", "11.4lX1.7wX5h", "10.2lX1.3wX4.2h", "6.5lX1.5wX3h", "9lX1wX5.5h", "9lX1wX5h", "5lX1.2wX3.3h", "9lX.9X3.4h", "11.6lX2wX4.4h", "12lX3wX8h", "15inchesX15inches", "15inches X 15inches", "3.5inchesX3.5inchesX.2inches", "3.5inchsX3.5inchesX.2inches", "2inchesX2inches", "3.25inchesX1.8inchesX.25inches", "2.4inchesX3inchesX.25inches", "2.8inchesX3.1inchesX.25inches", "2.3inchesX2.3inchesX.25inches", "2.5inchesX1.5inchesX.25inches", "2inchesX2.5inchesX.25inches", "2.5inchesX3inchesX.25inches", "3inchesX2inchesX.25inches", "365ml", "100 gm", "400gm", "150 gm", "30 ml", "400 gm", "15 ml", "90 ml", "15X9X5cms", "19X11X5cms", "2.8inches dia", "2.6inches dia", "9X12.5X3.5inches", "13.5X16inches", "13.5X15inches", "25x4x14cms  ", "25x4x19cms", "18x4x22cms ", "35X50CM", "Blackberry Play book    ", "Apple Ipad 2           ", "Apple Ipad 1           ", "Samsung P7500 Galaxy Tab", "Samsung P6200 Galaxy Tab", "Samsung N7000 Galaxy Note", "Samsung P1000 Galaxy Tab", "35x16.5x5cms  ", "27x15X5cms  ", "28x19x5cms ", "6.3MTRS", "36.5", "4X7Inches", "7X12Inches", "7X10Inches", "3X8Inches", "7X8Inches", "6X10Inches", "6X8Inches", " L", "6.2mtrs", "2.6\"diameter", "2.4\"diameter", "2.6Inches", "7Inches", "2.4Inches", "1.5Inches", "2Inches", "1Inches", "2.5Inches", "3Inches", "Adjustable ", "14Inches", "16Inches", "15x15x9", "34.2x34x9", "42x41.5x9", "22x36.5x36.5", "16x22.5x25", "14.3x17.3x19.5", "15X15\"", "15.5X15.5X14CmWXDXH", "18X18X25CmWXDXH", "15.5X15.5X15CmWXDXH", "43.5X13X37CmWXDXH", "13X13X24CmWXDXH", "17.5X17.5X50CmWXDXH", "23X10.5X20.5CmWXDXH", "17.5X17.5X53CmWXDXH", "20X20X26.5CmWXDXH", "20.5X20.5X43.5CmWXDXH", "2x8", "2x6", "M/L", "S/M", "S/M/L", "0", "12", "2", "14", "16", "Length-6.20Meters(5.40meter saree+.80 meter blouse)", "11X19Cms", "14X24cms", "Free Size", "4\"X10\"", "5\"X10\"", "5\"X7\"", "4\"X8\"", "6.75", "4.75", "46", "(L)10.5X(W)1.5X(H)11.5Inch ", "(L)11X1.5(W)X7.5(H)Inch", "10LX2.5WX3.75Dcms", "10WX2.5X3.75Dcms", "8LX2.5WX7Dcms", "6.7LX2.6WX6.6Dcms", "9LX1.5WX6.9Dcms", "5.5Wcms", "6.1LX1.6Wcms", "51Lms", "31Lcms", "54Lcms", "23Lcms", "51.3Lcms", "44.5Lcms", "22.5Lcms", "25.6Lcms", "42.2Lcms", "30Lcms", "51Lcms", "27LCms", "46LCms", "35LCms", "F", "15inches X 15 inches", "25", "4\" X 8\"", "4\"X 7\"", "5\" X 8\"", "20 X 8 cms", "12 X 9 \"", "9 X 5\"", "14 X 9\"", "16 X 11\"", "6 X 4 \"", "8 X 10 cms", "12 X 8\"", "12 X 12\"", "15 X 12\"", "20 X 6 cms", "10 X 8 \"", "7 X 4\"", "12 X 11\"", "10 X 12\"", "32CM*13CM*2.5CM", "32CM*11CM*2CM", "30CM*15.5CM*2CM", "32CM*19.5CM*4CM ", "34CM*15CM*2CM", "27CM*11CM*2CM\n", "27CM*12*3CM", "22.5CM*8.5CM*5CM\n", "25.5CM*12CM*2CM\n", "39.5", " M   ", " S", "14\" from neck", "9\" CHAIN", "10\" CHAIN", "11\" CHAIN", "12\" CHAIN", "14\" CHAIN", "18mm ring size", "3cm top diameter and 20mm ring size", "Stretchable", "7.5\"", "8\"", " XL", " XXL", "6.5h X 9.5w inches", "9.5h X 10.5w inches", "8h X 13w inches", "10.5h X 14w inches", "10h X 11.5w inches", "9.50h X 15w inches", "9h X 8.50w inches", "5.75h X 11w inches", "12h X 17.5w inches", "4h X 7.75w inches", "14 inches", "17 inches", "21l X 18w inches", "19.5l X 16.5w inches", "19.5 X 16.5 inches", "14.5l X 12w inches", "25l X 18w inches", "8w X 8l X 10.5h inch", "6w X 6l X 6h inch", "5.25w X 5.25l X 9.5h inch", "5w X 5l X 8h inch", "10w X 4l X 9h inch", "7w X 7l X 10h inch", "4inches x 7inches", "4inchesx 7inches", "5inches x 8inches", "7inches x 9inches", "4inches x 10inches", "4inches x 12inches", "6inches x 11inches", "5inches x 11inches", "4inches X 8inches", "Distinguish yourself from the crowd with avant-garde creations from Arjun Agarwal. Don’t miss this opportunity to effortlessly outshine the rest!", "1ltr", "500ml", "Standard", "40*30*16cm", "26*15*6cm", "30*20*8cm", "35*33*12cm", "32*24*15cm", "13*15*5cm", "35*28*12cm", "31*18*13cm", "24*10*18cm", "38*24*12cm", "18*11*2cm", "40*32*12cm", "42*28*14cm", "98*28*12cm", "32*16*6cm", "40*28*10cm", "32*22*12cm", "38*26*12cm", "40*30*14CM", "28*26*12cm", "35*25*12cm", "35*20*12cm", "30*26*10cm", "45*32*15cm", "20*10*4cm", "90  Ml", "125 ML", "75 ML", "80 ML", "85 ML", "50 ML", "32.B", "32.C", "34.B", "34.C", "36.B", "36.C", "38.B", "32.D", "34.D", "36.D", "38.C", "38.D", "40.B", "40.C", "4.4*4.4", "5*4", "7*3.5", "5.5*4.5", "5.5*2", "2.5*2.5", "5.5*3", "8*3.5", "6.5*2", "3*3", "3.5*2.5", "3*2.5", "2*2", "32.DD", "32.A", "34.A", "36A", "40.D", "42.B", "42.C", "42.D", "250 ml", "3X100 g", "100 g", "1X150 g", "300 ml", "13.3ml", "9.9g", "28.3g", "11.3g", "39ml", "113g", "86g", "236ml", "FS(Fits 32 to 38)", "9 x 9 inch", "16 x 16 inch", "10 x 20 inch", "8 x 16 inch", "12 x 12 inch", "7 x 18 inch", "9 x 23 inch", "26(L)x16(H) cms.", "37(W)x38.5(H)cms", "25(L)x17(H)x6(W)cms", "26.5(L)X20(H)X9(W)cms.", "32.5x29x2cms", "25(L)X35(H)cms", "9 x 22 inch", "7 x 15 inch", "19.5(L)x9(H)cms ", "19.5(L)x9(H)X2(W)cms ", "17(L)X12(H)X8(W)cms", "140-148 cm", "O/S", "70*200 cms", "75 * 200 cms", "55 * 200 cms", "5\"X8\"", "8\"X4\"", "6\"X7\"", "5\"x9'", "4\"X7'", "7\"X4\"", "4\"x12\"", "6'X4'", "5\"X4'", "12\"X4\"", "32B", "34B", "36B", "38B", "40B", "3", "open- 29(L)X14.5(H)cms\nclosed-10(L)X14.5(H)cms", "10*8*8 cms approx", "12*10*10 cms approx", "LXL", "32C", "34D", "38C", "32D", "34C", "36C", "36D", "38D", "40C", "42C", "42D", "40D", "40E", "42E", "32DD", "5.5 mtr", "7.5mtrs", "7.9mtrs", "7.75mtrs", "5.5mtrs", "7mtrs", "10mtrs", "9.5mtrs", "70B", "70C", "75B", "75C", "75D", "80B", "80C", "80D", "85B", "85C", "85D", "32A", "34A", "XXXL", "26x14x5cms", "34x20.5x9cms", "L;4, W;2", "L:1.3CM,W:1.9CM", "L:4CM,W:2CM", "L:3.5CM,W:2CM", "L:3.5CM,W:3.5CM", "L:4CM, W:1.5CM", "L:3.5cm, W:1.75cm", "L:3.75CM,W:2.5CM", "L:5CM,W:4CM", "L:2.5CM,W:2CM", "L:5.5, W:3", "L:4CM,W:3CM", "L: 9CM, W: 7.3CM DIAMETER", "L:4CM,W:4CM", "L: 2.6CM W:2.6CM, BORDER W: 7MM", "L:2.5CM, W:2.5CM", "L:4.5CM,W:3CM", "L:3.4CM, 2.5CM DAIMETER", "L: 5.2CM,W: 4.1CM", "90B", "80A", "85A", "90A", "95B", "90C", "95A", " XS", "4\" x 3\"", "4\" x 6\"", "4\" x 2\"", "5\" x 2\"", "6\" x 8\"", "3\" x 3\"", "6\" x 4\"", "H x W - 14.5\" x 17.5\"", "H x W x G - 9 x 17 x 1.5 inches", "H x W - 3.8\" x 9\"", "L:23Cm", "L:18Cm,W:14Cm", "L:34Cm", "L:39 Cm", "Ic:17.2Cm", "L:35.5Cm", "L:38Cm", "L:50Cm", "Ic: 24.3Cm W:8Mm", "Ic:21Cm", "L:15.5Cm,W:17.5Cm", "L:41.5Cm", "L:22Cm, Wire Cir: 39.5Cm", "L:20Cm, W:16.5Cm", "Oc:28.8Cm,Ic: 15.4Cm", "L: 32.5Cm", "L: 40Cm,W:11.6Cm", "L:38.5Cm, Pendent W:6.8Cm,L:9.4Cm", "L:46.4Cm", "Ic:14.8Cm,Oc:23.7Cm", "C:24.4Cm, Oc:36Cm", "L:39Cm, W: 7Cm", "4.5\"/4\"", "L-XL", "JJSJOH0014", "JJSJOH0015", "JJSJOH0016", "JJSJOH0112", "JJSJOH0113", "JJSJOH0114", "JJSJOH0115", "JJSJOH0135", "JJSJOH0136", "JJSJOH0108", "JJSJOH0109", "JJSJOH0110", "JJSJOH0111", "1.1 CM", "1 CM", "1.4 CM", "1.2 CM", "7 MM", "9.5", "12x14", "16\"X16\"", "10\"X10\"", "12\"x12\"", "20\"X20\"", "13\"x20\"", "14\"x10\"", "10\"x14\"", "16X16\"", "3\" by 3\"", "6\" by 2\"", "4\" by 4\"", "3\" by 2\"", "5\" by 2\"", "4\" by 2\"", "3\" by 4\"", "5\" by 4\"", "3\"/3\"", "22.5cm(L)x11cm(W)", "5ML", "10ML", "30ml", "30AA", "30A", "32AA", "34AA", "Freesize", "length-18, waist-30, hip-39 inches", "length-24, waist-30, hip-39 inches", "length- 28, waist-30, hip-39 inches", "length-30, waist-30, hip-39 inches", "b", "m(38)", "l(40)", "s(36)", "xl(42)", "Length:85cm Bust:80cm ", "Length:76cm, Bust:86cm, Sleeve:60cm, Shoulder:38cm pink", "Size?One Size(Regular)\nDetail in Tile Measurement:\nLength:76cm, Bust:40cm, Waistline:37cm Shoulder:32cm\nProduct information description:\n(1)Sleeve Length:long sleeves\n(2)Sleeve type: conventional\n(3) Fabrics main content: 30% and below\n(4) Fabric: Brocade", "Size: One Size(Regular)\nLength:78cm, Bust:75-94cm\n\nProduct Information Description: \n(1)Style: Street\n(2)Combination forms: single set\n(3)Fashion element: Lotus leaf edge\n(4)Length: Short paragraph (76-90CM)\n(5)Waist type: High waist\n(6)Sleeve length: Sle", "Material:Cotton\nSize?One Size(Regular)\nColor: Black\nDetail in Tile Measurement\nLength:76cm, Bust:72cm", "Size: One Size(Regular)\nDetail in Tile Measurement:\nLength:76-90cm", "Material: Cotton,Chiffon\nColor: Black\nSize: One Size(Regular)\nLength:78cm, Bust:70-98cm, Sleeve:59cm, Hip:80cm ,Waist:65cm", "Material:Silk\nColors:Black\nSize: One Size(Regular)\nLength:70cm, Bust:70-84cm, Waist:68-82cm", "Material:Chiffon\nColor:Black,Red\nSize: One Size(Regular)\nDetail in Tile Measurement:\nLength:70cm , Bust:80-84cm\n ", "Length:75cm Sleeve:55cm", "Length:72cm Bust:36cm", "Length:80cm Bust:84cm Shoulder : 60cm ", "Material: Silk\nColor:Black\nSize: One Size(Regular)\nDetail in Tile Measurement:\nLength:78cm, Bust:88cm, Waist:80cm", "Material: Silk,Lace\nColors: Black,Red,Pink\nSize? One Size(Regular)\nDetail in Tile Measurement:\nLength:81cm, Bust:82cm", "Material:Cotton\nColors:Black,Blue,Pink\nSize? One Size(Regular)\nDetail in Tile Measurement:\nLength:62cm, Bust:88cm", "Length:78cm, Bust:85cm", "Length: 79cm Bust: 88cm waistline: 90cm", "Size: L XL\nL:Shoulder:36cm Bust:84cm Length:80cm Sleeve:58cm\nXL:Shoulder:37cm Bust:88cm Length:82cm Sleeve:59cm\n\nThis is a comfortable big V collar slim fit and sexy skinny dress.It shows your ladies temperament.", "FREE SIZE, MOHAIR FABRIC", "S(30)", "m(32)", "l(34)", "xl(36)", "Unstitched", "XS (34)", "S (36)", "M (38)", "L (40)", "XL (42)", "XXL (44)", "1", "70X200Cm", "50X180Cm", "100x200Cm", "43", "#N/A", "21cm(L)x10cm(H)", "4.6", "5.9", "2.1", "3.2", "8.8", "5.4", "7.7", "5.7", "6.1", "8.4", "4.9", "7.9", "6.2", "3.7", "4.7", "8.3", "11.7", "10.2", "11.6", "12.1", "6.4", "10.3", "4.8", "6.9", "6.6", "13", "12.5", "8.1", "10.6", "2.3", "2.7", "9.4", "3.3", "5.8", "2.8", "4.1", "9.7", "7.2", "7.4", "4.2", "10.7", "3.8", "3.6", "5.6", "2.9", "2.6", "4.4", "3.5", "2.2", "2.4", "24", "31", "33", "27", "29", "34E", "36E", "38E", "S(38)", "M(40)", "L(42)", "XL(44)", "190mm", "Length: 74cm, Bust: 82cm, Waist: 64cm", "Top Width: 26cms, Height:21cms, Strap Length:35cms", "Top Width: 29cms, Height:19cms, Strap: 130cms", "Length: 78cm, Bust: 82cm, Waist: 76cm", "Height:28cms, Bottom Width: 40cms, Handle: 17cms", "Diameter - 1.8cms", "Small. Exact Size: Length:74cm, Bust: 70cm, Shoulder: 32cm, Waist: Elastic", "Height: 17cms, Thickness: 8cms, Bottom Width:19cms", "Tops: Length:39cm, Shoulder: 34cm, Sleeve Length: 58cm Dress: Length: 65cm, Bust: 58cm (elasticity), Waist: 66cm,Hem: 128cm, Shoulder: 34cm, Sleeve Length: 56cm", "Large", "Height: 21cms, Bottom Width: 8cms, Strap Length: 56cms", "130gms", "200 ML", "50gms", "250gms", "8gms", "Saree – 5.60 mtrs, Blouse fabric – 0.80 mtrs", "45", "47", "11\" x 5\"", "16.5x16.5", "8\" x 9\"", "Top – 2.70 mtrs, Dupatta – 2.25 mtrs, Bottom – 2.5 mtrs, Inner – 2.0 mtrs", "7\" x 7\"", "12\" x 7\"", "5\"x5\"", "6\"x5\"", "8\"x8\"", "7\"x7\"", "11\"x4\"", "12\"x15\"", "12\"x10\"", "14\"x12\"", "Width: 31cms Height: 20cms Thickness: 9cms", "6.3 mtrs", "Width: 13cms Height: 30cms Thickness: 22cms", "Width: 36cms Height: 34cms Thickness: 14.5 cms Handle height: 17cms", "Width: 30cm Height: 25cm Thickness: 9cm", "Width: 45cm Height: 30cm Thickness: 6cm Handle height: 28cm", "Width: 5.5\" Height: 4.8\"", "1240x1240", "XS(34)", "XXL(44)", "Regular", "free (S-L)", "3 inch dia per 100 grams", "250ML", "200ML", "50ML", "15ML", "150ML", "125 ml", "50 ml", "120 ml", "42 B", "Plastic Body", "17", "15", "19", "21", "12\" x 3.25\"", "BIG 12\" x 3.25\" SMALL 9.5\" x 2.25\"", "9.5\" x 2.25\"", "8.5", "55", "28\"", "30\"", "32\"", "Fits small/Medium", "Free size - stretches upto 37.8 inches", "Medium", "Fits Small/Medium/Large", "190ml", "100gms", "100ml", "10gms", "125gms", "3XL", "4XL", "5XL", "S-L", "Fits XS-S", "30b", "38\"", "Length approx : 20 inches", "Hair Clip", "Length approx : 26 inches", "Length approx : 40 inches", "Length approx: 3.5 inches", "Length approx: 4 inches", "Length approx: 30 inches", "Length: approx 20 inches", "16\" X 16\"", "14\" X 21\"", "12\" X 28\"", "8.5\" X 11.5\"", "2'2", "2'4", "2'6", "13\"x13\"", "35(EU)", "36(EU)", "37(EU)", "38(EU)", "39(EU)", "7 (UK)", "40(EU)", "8 (UK)", "9 (UK)", "10 (UK)", "11 (UK)", "34(EU)", "fr", "4(UK)", "6(UK)", "8(UK)", "34F", "36F", "38DD", "38F", "36 (EU)", "37 (EU)", "38 (EU)", "39 (EU)", "40 (EU)", "41(EU)", "12(US )", "10.5”", "7”", "w-44 cms ; h -32 cms ; bottom-10.5 cms", "w-31 cms ; h -24 cm ; bottom-11.5 cms", "w - 31 cms; h - 24 cms; bottom - 11.5 cms", "w - 32 cms; h – 29 cms; bottom – 13 cms", "2\"6", "w - 44 cms; h - 33 cms; bottom – 85 cms", "w-45 cms; h -34cms ; bottom-16cms", "w-31 cms ; h -33cms ; bottom-12cms", "w-42 cms ; ht -29 cms ; bottom-9.5cms", "w-45 cms h -34cms ; bottom-16cms", "w-45 cms; h -40 cms ; bottom-13cms", "w-50 cms ; ht -30 cms ; bottom-13.5cms", "w-34 cms; h -27cms ; bottom-14 cms", "w - 44 cms; h - 33 cms; bottom – 8.5 cms", "15grams", "30C", "w - 32 cms; h - 29 cms; bottom - 13 cms", "w - 44 cms; h - 33 cms; bottom - 85 cms", "w - 44 cms; h - 33 cms; bottom - 8.5 cms", "w-52 cms: h-38cms: bottom-11.5 cms", "10(UK)", "12(UK)", "XS-S", "XS-M", "L-26cm, W-36cm", "L-14 , W-32cm", "L-26CM, W-12CM", "L-15CM, W-22CM", "L-25CM, W-35CM", "L-28CM,W- 36CM", "L-30CM, W-39CM", "L-26CM, W-34CM", "L-15CM,W-39CM", "L-14CM,W-32CM", "L-14CM, W-39CM", "L-27CM, W-26CM", "L-19CM, W-30CM", "L-26CM,W-37CM", "50g", "125g", "100g", "80g", "40cms X 40cms", "FBGLUX0225", "FBGLUX0227", "FBGLUX0228", "FBGLUX0233", "FBGLUX0230", "FBGLUX0231", "FBGLUX0234", "FBGLUX0237", "FBGLUX0240", "FBGLUX0238", "FBGLUX0239", "FBGLUX0229", "100 GMS", "20 GMS", "1 NOS", "1 pc", "250 GMS", "500 GMS", "240 GMS", "220 GMS", "300 GMS", "45 GMS", "10 GMS", "M-XL", "50gm", "100gm", "3 (UK)", "4 (UK)", "5 (UK)", "6 (UK)", "FCCKIW0026", "FCCKIW0027", "FCCKIW0028", "FCCKIW0029", "FCCKIW0030", "FCCKIW0031", "FCCKIW0032", "FCCKIW0033", "FCCKIW0034", "FCCKIW0035", "FCCKIW0036", "FCCKIW0037", "FCCKIW0038", "FCCKIW0039", "FCCKIW0040", "FCCKIW0041", "FCCKIW0042", "FCCKIW0043", "FCCKIW0044", "FCCKIW0045", "FCCKIW0046", "FCCKIW0047", "FCCKIW0048", "FCCKIW0049", "FCCKIW0050", "FCCKIW0051", "FCCKIW0053", "FCCKIW0054", "FCCKIW0055", "FCCKIW0056", "FCCKIW0057", "FCCKIW0058", "FCCKIW0059", "FCCKIW0061", "Fits M-L", "Fits M-XL", "Fits S-L", "18", "one size", "41 (EU)", "28B", "42B", "44B", "Fits S-XL", "14(UK)", "350 ml", "180 ml", "Length-9.5,Width-3,Height-7 inches", "Length-11Width-2.5Height-7 inches", "Length-8.5Width-2Height-5.5 inches", "Length-10Width-2.5Height-6 inches", "Length-28Width-7Height-16 inches", "Length-9Width-2.5Height-6.5 inches", "Length-8Width-1Height-4.5 inches", "Length-12Width-3Height-11 inches", "Length-14Width-3.5Height-12 inches", "Length-13Width-4.5Height-9.5 inches", "Length-13Width-6Height-11 inches", "Length-10Width-4Height-9 inches", "Length-12\"Width-4Height-11.5 inches", "Length-12\"Width-5Height-9.5 inches", "Length-12Width-5.5Height-8 inches", "Length-12Width-5Height-9 inches", "Length-14''Width-5''Height-9.5'' inches", "Length-12.5Width-3Height-8.5 inches", "Length-13''Width-3''Height-10'' inches", "Length-14\"Width-4\"Height-11\" inches", "Length-12\"Width-3\"Height-8\" inches", "Length-12.5\"Width-5\"Height-10\" inches", "Length-11.5\"Width-5\"Height-9\" inches", "Length-14\"Width-5.5\"Height-10\" inches", "4(US)", "4.5(US)", "5(US)", "8.5(US)", "9(US)", "6.5(US)", "7(US)", "7.5(US)", "6(US)", "8(US)", "6.5cms", "6cms", "7cms", "6.2cms", "2 cms", "10-15\"", "6 (US)", "7 (US)", "8 (US)", "9 (US)", "11 (US)", "10 (US)", "5 (US)", "Fits S-M", "Fits L-XL", "6.5 cms", "15g", "250g", "28-30", "LENGTH:2 1", "32-34", "LENGTH:2", "LENGTH:1", "S-XL", "16 inches", "18 inches", "20 inches", "19 inches", "21 inches", "22 inches", "23 inches", "24 inches", "25 inches", "26-28", "30-32", "34-36", "8g", "XL-XXXL", "XL-XXL", "1100gm", "1030 gm", "350 gm", "800 gm", "700 gm", "200gm", "530 gm", "500 gm", "550 gm", "620 gm", "450 gm", "50 g", "250 g", "20 g", "220 g", "300 g", "45 g", "500 g", "12 (UK)", "150 gms", "35 (EU)", "400 gms", "34 (EU)", "8 gms", "15 gms", "11 oz", "39-40", "25gms", "1.5gms", "4.5gms", "50 gms", "X", "20", "22", "XX", "XXX", "32E", "32 A", "32 DD", "38 DD", "40DD", "42DD", "100D", "38A", "150gms", "3.5(UK)", "7(UK)", "6.5(UK)", "9.5(UK)", "9(UK)", "8(UK", "5.5(UK)", "4.5(UK)", "5(UK)", "3(UK)", "7.5(UK)", "Aluminium Metal", "3X", "2X", "M/UK10", "S/UK8", "M/UK12", "S/UK10", "M/UK 12", "11.5", "iphone4", "iphone4s", "iphone5", "15.2x10.2", "13X9.5", "25 Gms", "75 Gms", "80 cm", "90 cm", "110 cm", "115 cm", "9.6", "11.3", "9.1", "7.6", "S-M-L", "8 ml", "50 gm", "3430", "6715", "3667", "6118", "5431", "6326", "7903", "12903", "14799", "22743", "28910", "4819", "5819", "7778", "6056", "8972", "11500", "400 ml", "4167", "550 ml", "7319", "2555", "2556", "2417", "3660", "2951", "2639", "3986", "2549", "2271", "1833", "2743", "1882", "3090", "3646", "5313", "4 GB", "8 GB", "2 GB", "4s", "Iphone 4/4s", "Iphone 5/5s", "Samsung galaxy S4", "Samsung Galaxy Note 3", "Samsung galaxy s3", "Any", "Samsung Galaxy Grand", "Samsung Note 3", "2XL", "44.5", "2 Ply", "IPHONE 5", "SAMSUNG S3", "SAMSUNG NOTE 1", "IPHONE 4", "HTC BUTTERFLY S", "IPAD 2&3", "IPAD 2/3/4", "5 x 8 x 2", "7X4X2", "w-15,L-12,", "LxBxH= 6.2", "95 cm", "75 cm", "100 cm", "280*30mm", "I phone 4", "Top: 2.25,", "Kurta:3mts", "Saree: 5.6", "87 X 42 in", "10mm,19mm,", "44 CM", "28S", "28R", "28L", "30S", "30R", "30L", "32S", "32R", "32L", "34S", "34R", "34L", "Weight :0.43 Kgs", "112 x 32 cms", "122 X 40 cms", "122 X 47 cms", "Weight :0.2 Kgs", "Weight :0.13 Kgs", "117 x 40 cms", "Weight :1.01 Kgs", "Weight :0.52 Kgs", "350ml", "41-46", "36-40", "3-6", "750ML", "150 ML", "500 ml", "700 ml", "1 ltr", "2 ltr", "3 ltr", "4 ltr", "750 ml", "1Ltr", "1.5 Ltr", "44 x 60 Inches", "44 x 66 Inches", "44 x 72 Inches", "44 x 78 Inches", "44 x 84 Inches", "44 x 90 Inches", "44 x 96 Inches", "25 x 60 Inches", "25 x 66 Inches", "25 x 72 Inches", "25 x 78 Inches", "25 x 84 Inches", "25 x 90 Inches", "25 x 96 Inches", "500 ml-1ltr-1.5ltr", "Kids", "1.5LTR", "44x60Inches", "44x66Inches", "44x72Inches", "44x78Inches", "44x84Inches", "44x90Inches", "44x96Inches", "N", "10X12", "17X12", "36X6", "12X12", "21X11", "36X7", "11X16", "23X12", "21X12", "17X11", "20X11", "16X18", "24X11", "30X14", "24X14", "12X30", "10X28", "13X24", "24X22", "23X18", "24X17", "23X14", "14X24", "30X12", "12X28", "20X23", "26X9", "15X9", "15X15", "8X30", "12X17", "11X15", "11X14", "24X7", "27X8", "23X10", "12X21", "15X14", "25X10", "16X16", "35X12", "19X12", "15X12", "30X10", "11X23", "19X24", "15X18", "23X11", "12X34", "10X24", "12X23", "12X20", "16X17", "10X32", "34X11", "16X15", "18X14", "17X24", "24X16", "18X15", "22X12", "15X30", "23X15", "15X23", "30X9", "37X11", "A3", "XS- M", "XS-L", "XS-XL", "M-XXL", "L-XXL", "4-4S", "5-5S", "XXLL", "8 UK", "10 UK", "12 UK", "2.4 in", "2.6 in", "2.8 in", "6 UK"]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def size_splitter(a)
+  num_sizes = a.select{|x| x if /^[0-9\-\.]+$/.match(x)}
+  alphanum_sizes = (a-num_sizes).select{|x| x if /^\d+\w.+/.match(x)}
+    anotated_sizes = alphanum_sizes.select{|x| x if /^\d+\s*\(\w+\)$/.match(x)}
+    std_sizes = alphanum_sizes
+  alpha_sizes = (a - (num_sizes + alphanum_sizes)).select{|x| x if /^[a-zA-Z\-\.]+$/.match(x)}
+  remainder = a - (num_sizes + alphanum_sizes + alpha_sizes)
+  return num_sizes,alphanum_sizes,alpha_sizes,remainder
+end
+
+num_sizes,alphanum_sizes,alpha_sizes,remainder = size_splitter(s)
+num_sizes
+alpha_sizes
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,17 @@
+o = Spree::Order.select("user_id,total").where("state like 'complete' and cs_state not like 'initiate_cancel' and completed_at between ? and ? ",(DateTime.now.beginning_of_month - 5.hours - 30.minutes),(DateTime.now.end_of_month - 5.hours - 30.minutes))
+u = {}
+o.each{|x|
+  if u[x.user_id]
+    u[x.user_id][0] += 1
+    u[x.user_id][1] += x.total.to_f
+  else
+    u[x.user_id] = [1,x.total.to_f]
+  end
+}
+
+ret = u.to_a.sort{|x,y| x[1][1] <=> y[1][1]}.reverse[0..19]
+
+rets = ret.map{|x|
+  s = Spree::User.find(x[0])
+  [s.firstname.split(" ").map{|y| y.capitalize}.join(" "),x[1][1]]
+}

@@ -1,0 +1,20 @@
+    @stuck_robot_caller =[]
+    @not_yet_started=[]
+    @cod_call_customer=[]
+    @manual_intervent=[]
+    order_id = StMachine.where(:define_state_id => [52,54,35] ,:current_state => true)
+    order_id.each do |o|
+      @stuck_robot_caller << o.order_id if o.define_state_id == 52
+      @cod_call_customer << o.order_id if o.define_state_id == 35 && o.created_at.to_s >= '2013-02-01 00:00:00'
+      @manual_intervent << o.order_id if o.define_state_id == 54 
+    end
+    puts "Number of orders stuck in robot caller : size #{@stuck_robot_caller.uniq.size}"
+    @stuck_robot_caller.uniq.each{|s| puts s}
+    puts "=="*10
+    puts "Number of orders stuck in call cod customer : size #{@cod_call_customer.uniq.size}"
+    @cod_call_customer.uniq.each{|s| puts s}
+    puts "=="*10  
+    puts "Number of orders stuck in manual_intervent :size #{@manual_intervent.uniq.size}"
+    @manual_intervent.uniq.each{|m| puts m}
+    puts "=="*10
+    @not_yet_started=orders_not_started

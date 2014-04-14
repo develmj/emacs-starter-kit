@@ -1,0 +1,107 @@
+def get_size_map(product_ids)
+  return [] unless product_ids.is_a?(Array)
+  return [] if product_ids.empty?
+  ret = {}
+  product_ids.each{|x|
+    begin
+      y = $elasticache_size.get(x)
+      if y
+        JSON.parse(y).each{|size|
+          if ret[size]
+            ret[size] << x
+          else
+            ret[size] = [x]
+          end
+        }
+      end
+    rescue Exception => e
+    end
+  }
+  return ret
+end
+
+def get_color_map(product_ids)
+  return [] unless product_ids.is_a?(Array)
+  return [] if product_ids.empty?
+  ret = {}
+  product_ids.each{|x|
+    begin
+      y = $elasticache_color.get(x)
+      if y
+        if ret[y]
+          ret[y] << x
+        else
+          ret[y] = [x]
+        end
+      end
+    rescue Exception => e
+    end
+  }
+  return ret
+end
+
+def get_ptype_mapp(product_ids)
+  return [] unless product_ids.is_a?(Array)
+  return [] if product_ids.empty?
+  ret = {}
+  product_ids.each{|z|
+    x = "p#{z}"    
+    begin
+      r = $elasticache_ptype.get(x)
+      y = r.to_s.gsub('"',"")
+      if y
+        if ret[y]
+          ret[y] << z
+        else
+          ret[y] = [z]
+        end
+      end
+    rescue Exception => e
+    end
+  }
+  return ret
+end
+
+def get_ptype_mapt(product_ids)
+  return [] unless product_ids.is_a?(Array)
+  return [] if product_ids.empty?
+  ret = {}
+  product_ids.each{|z|
+    x = "t#{z}"
+    begin
+      r = $elasticache_ptype.get(x)
+      y = r.to_s.gsub('"',"")
+      if y
+        if ret[y]
+          ret[y] << x
+        else
+          ret[y] = [x]
+        end
+      end
+    rescue Exception => e
+    end
+  }
+  return ret
+end
+
+def get_ptype_mapt(product_ids)
+  return [] unless product_ids.is_a?(Array)
+  return [] if product_ids.empty?
+  ret = {}
+  product_ids.each{|z|
+    x = "a#{z}"
+    begin
+      r = $elasticache_ptype.get(x)
+      y = r.to_s.gsub('"',"")
+      if y
+        if ret[y]
+          ret[y] << x
+        else
+          ret[y] = [x]
+        end
+      end
+    rescue Exception => e
+    end
+  }
+  return ret
+end

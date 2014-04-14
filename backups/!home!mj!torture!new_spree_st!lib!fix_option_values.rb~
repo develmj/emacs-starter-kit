@@ -1,0 +1,4 @@
+def fix_na(permalink = nil)
+  return "No permalink given!" unless permalink
+  Spree::ActiveSaleEvent.find_by_permalink("t/designers/lifestyle/home-and-decor/short-circuit").eventable.products.each{|x| x.variants.last.option_values = [a] if x.variants and x.variants.last.is_master? == false and x.variants.last.option_values.count == 0}
+end

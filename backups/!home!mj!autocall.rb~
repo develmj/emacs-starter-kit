@@ -1,0 +1,501 @@
+#Callback only comes after the call ends irrespective of state of the call
+#Sample StatusCallBack URL return is Parameters: {"CallSid"=>"24196bd93d2810df1f5719c29fc329d9", "Status"=>"completed", "RecordingUrl"=>"", "DateUpdated"=>"2013-01-23 19:20:34"}
+
+#Sample Menu URL is Parameters: {"CallSid"=>"84b7dd5129414b544bc5280812b99e9b", "CallFrom"=>"08030752589", "CallTo"=>"8030752589", "CallStatus"=>"in-progress", "Direction"=>"incoming", "ForwardedFrom"=>"", "Created"=>"Thu, 24 Jan 2013 01:16:34", "DialCallDuration"=>"0", "StartTime"=>"2013-01-23 19:46:34", "EndTime"=>"1970-01-01 05:30:01", "CallType"=>"call", "DialWhomNumber"=>"", "flow_id"=>"4199", "tenant_id"=>"480", "digits"=>"\"1\"", "From"=>"08030752589", "To"=>"08030752589", "path"=>"mj"}
+
+require 'rubygems'
+require 'active_support/core_ext/object/to_query'
+require 'active_support/core_ext/numeric/time'
+require 'xmlsimple'
+require 'thread'
+require 'monitor'
+require 'logger'
+require 'arjdbc'
+
+#Sadly need to use 
+ENV['RAILS_ENV'] = 'production'
+require '/home/ubuntu/apps/autocaller/config/environment.rb'
+
+$ex_queue = Queue.new
+$ex_queue.extend(MonitorMixin)
+
+$num_list = Array.new
+
+$thread_list = []
+$thread_list.extend(MonitorMixin)
+
+EXOTEL_SID = "styletag"
+EXOTEL_TOKEN = "ab33139dc42ecfc5dcbe576871dd94df6d3037e4"
+EXOTEL_FLOW_ID = "4199"
+EXOTEL_CALLBACK = "http://fake.styletag.in/auto_caller/callback.json"
+EXOTEL_SMS_URL = "https://twilix.exotel.in/v1/Accounts/#{EXOTEL_SID}/Sms/send"
+EXOTEL_CALL_URL = "https://twilix.exotel.in/v1/Accounts/#{EXOTEL_SID}/Calls/connect"
+WARNING_TIME = 300
+SMS_BODY = 'Thank for your purchase on Styletag.com. You will be receiving a confirmation IVR call from us shortly. Please answer the same.'
+MAX_QUEUE_SIZE = 5
+NUMBER_OF_RETRIES = 2
+RECALL_GAP = 15
+LOG_STDOUT = nil
+LOG_FILE = "/mnt/autocaller/log/autocaller_run.log"
+
+STOP_FILE = "/tmp/stop_autocaller"
+
+$log = LOG_STDOUT ? Logger.new(STDOUT) : Logger.new(LOG_FILE,'weekly')
+$log.level = Logger::DEBUG
+
+def jcurl(url,params)
+  params = params.to_query
+  a = ""
+  a = `timeout 60 curl -d "#{params}" #{url}`
+
+  if a.include?("xml")
+    data = XmlSimple.xml_in(a)
+    return data["Call"].first if data["Call"]
+    return nil
+  else
+    $log.info("#{Time.now} - Curl timed out!!")
+    return nil
+  end
+end
+
+def cleanup_number(cnumber)
+  return "0#{cnumber.scan(/\d/).last(10).join('')}"
+end
+
+def create_temp_auto_caller(cnumber, orderid, orefnumber, retries, status = "Robot Caller tried more than twice. Could not reach customer.")
+  acaller = AutoCaller.new
+  acaller.Onumber = orderid
+  acaller.Orefnumber = orefnumber
+  acaller.Cnumber = cnumber
+  acaller.Status = status
+  acaller.retries = retries
+  return acaller
+end
+
+def thread_dispatcher
+  while(true)
+    $thread_list.each{|t|
+      unless t.alive?
+        t.terminate
+      end
+    }
+    if decent_time?
+      if $ex_queue.length < MAX_QUEUE_SIZE
+        orderid, orefnumber, cnumber, retries = get_next_cnumber
+        if orderid and orefnumber and cnumber
+          todo = nil
+          begin
+            if $num_list.include?(cnumber)
+              $ex_queue.pop
+              ac = create_temp_auto_caller(cnumber,orderid,orefnumber,retries)
+              $log.info("#{Time.now} - Pushing #{cnumber} back. Customer is already being called.")
+              push_to_queue(ac,true)
+            else
+              $num_list.push(cnumber)
+              todo = true
+            end
+          rescue Exception=>e
+            $log.info("#{Time.now} - Error in caller Process - #{e}")
+          end
+          
+          if todo
+            $ex_queue.push(1)
+            $thread_list << Thread.fork{
+              $log.info("#{Time.now} - Forking thread with details #{orderid.to_s} #{orefnumber.to_s} #{cnumber.to_s}")
+              caller_process(orderid, orefnumber, cnumber, retries)
+            }
+          end
+        end
+      end
+    end
+  end
+end
+
+def decent_time?
+  cur_hour = (Time.now + 5.hours + 30.minutes).hour
+  return true# if cur_hour >= 9 and cur_hour <= 19
+  return false
+end
+
+def get_next_cnumber
+  #get the next cnumber from the db and remove it from the list
+  ocb = OrderConfirmBuffer.where("(recall_at < :t OR recall_at IS :n)",{:n =>nil, :t => Time.now}).first
+  if ocb
+    order_id = ocb.order_id
+    order_number = ocb.order_number
+    phone_number = ocb.phone_number
+    retries = ocb.retry
+    begin
+      ocb.destroy
+      OrderConfirmBuffer.find_all_by_order_id(order_id).each{|x| x.destroy}
+    rescue Exception => e
+      $log.info("#{Time.now} - Removing from OCB failed - #{e}")
+    end
+    
+    begin
+      # If some process dies mid-way, do not call again if retries is 3 or more
+      if retries.to_i >= NUMBER_OF_RETRIES
+        acaller = create_temp_auto_caller(phone_number, order_id, order_number, retries)
+        push_to_manualintervent(acaller)
+        $log.info("#{Time.now} - Order #{order_id} has reached max retries. Pushing to manual intervent")
+        return nil,nil,nil,nil
+      end
+      
+      #Check for an order's state. Have seen spurious things happening.
+      check_o = order_id ? Spree::Order.find(order_id) : nil
+      if check_o
+        if check_o.is_confirmed?
+          $log.info("#{Time.now} - Order #{order_id} has already been confirmed")
+          return nil,nil,nil,nil
+        elsif check_o.state == "canceled"
+          $log.info("#{Time.now} - Order #{order_id} has already been canceled")
+          return nil,nil,nil,nil
+        elsif check_o.cs_state == "manual_intervent"
+          $log.info("#{Time.now} - Order #{order_id} has already been moved to manual intervent")
+          return nil,nil,nil,nil 
+        elsif check_o.cs_state == "cancel"
+          $log.info("#{Time.now} - Order #{order_id} has already been canceled")
+          return nil,nil,nil,nil
+        end
+      end
+    rescue Exception => e
+      $log.info("#{Time.now} - Something went wrong in getting new cnumber - #{e}")
+      return nil,nil,nil,nil
+    end
+    return order_id, order_number, phone_number, retries
+  end
+  return nil,nil,nil,nil
+end
+
+def push_back_to_buffer(temp)
+  o = temp.clone
+  o.save
+  temp.destroy
+  return nil,nil,nil,nil
+end
+
+def caller_process(orderid, orefnumber, cnumber, retries)
+  
+  #Caller process itself now checks for valid values
+  return unless (orderid and orefnumber and cnumber)
+
+  $log.info("#{Time.now} - Initiating caller process for Cnumber - #{cnumber.to_s} Orderid - #{orderid.to_s}")
+  
+  #Do not entertain thrice called customers
+  if retries.to_i > NUMBER_OF_RETRIES
+    $log.info("#{Time.now} - Customer has already been called max number of times. Moving to manual intervention")
+    acaller = create_temp_auto_caller(cnumber, orderid, orefnumber, retries)
+    push_to_manualintervent(acaller)
+  end
+
+  #first warn the customer with an sms. Wrapping with a timeout. God knows why.
+  begin
+    Timeout::timeout(60){ret = process_exotel_retval(send_sms(cleanup_number(cnumber),SMS_BODY))}
+  rescue Timeout::Error => te
+    $log.info("#{Time.now} - Sending sms to #{cnumber} failed")
+  end
+  
+  begin
+    o = Spree::Order.find(orderid)
+    o.initiate_robot_caller("Sending customer SMS. Waiting to initiate IVR call.") if o
+  rescue Exception=>e
+    $log.info("Something went wrong with method: caller_process - #{e}")
+    $log.info("Exception => #{e}")
+  end
+  
+  #wait for it..
+  $log.debug("sleeping")
+  sleep(120)
+  $log.debug("wake up")
+  
+  #call the customer
+  begin
+    o.initiate_robot_caller("Calling customer for IVR call.") if o
+  rescue Exception=>e
+    $log.info("#{Time.now} - Something went wrong with method: caller_process - #{e}")
+    $log.info("#{Time.now} - Being persistent")
+    sleep(5)
+    begin
+      o.initiate_robot_caller("Calling customer for IVR call.") if o
+    rescue Exception => e
+      $log.info("#{Time.now} - Being persistent also did not work")
+    end
+  end
+
+  ret = nil
+  begin
+    ret = process_exotel_retval(dial_number(cleanup_number(cnumber)))
+  rescue Timeout::Error => te
+    $log.info("#{Time.now} - Calling customer #{cnumber} timed out")
+  end
+  
+  #If the exotel curl call timed out, need to push data back into buffer, without it being registered as a retry
+  unless ret
+    ac = create_temp_auto_caller(cnumber, orderid, orefnumber, retries, "Robot Caller tried, but exotel returned none")
+    ret = push_to_queue(ac)
+    $log.info("#{Time.now} - Exotel did not return data for order_id #{orderid}. Pushing back to queue")
+    return
+  end
+  
+  #store the entry
+  make_entry(ret, cnumber, orderid, orefnumber, retries)
+  
+  if ret["Sid"]
+    begin
+      Timeout::timeout(180){
+        while(true)
+            if check_state(ret["Sid"])
+              $ex_queue.pop
+              $num_list.delete(cnumber)
+              break
+            end
+        end
+      }
+    rescue Timeout::Error => te
+      $log.info("#{Time.now} - State checker for cnumber #{cnumber} timed out")
+      a = AutoCaller.find_by_CallSid(ret["Sid"])
+      ret = push_to_queue(a)
+      $ex_queue.pop
+      $num_list.delete(cnumber)
+      return true
+    end
+  else
+    $log.info("#{Time.now} - Number #{cnumber} dialed did not return valid Sid")
+    a = create_temp_auto_caller(cnumber, orderid, orefnumber, retries, "Robot Caller tried, but exotel returned none")
+    ret = push_to_queue(a,true)
+    $ex_queue.pop
+    $num_list.delete(cnumber)
+  end
+  return
+end
+
+def process_exotel_retval(val)
+  return val unless val
+  val.each_key{|x|
+    unless val[x].first.empty?
+      val[x] = val[x].join("")
+    else
+      val.delete(x)
+    end
+  }
+  return val
+end
+
+def send_sms(cnumber,text,confirmation=nil)
+  $log.info("#{Time.now} - Sms being sent: #{cnumber}") unless confirmation
+  $log.info("#{Time.now} - Confirmation sms sent: #{cnumber}") if confirmation
+  params = {
+    'To' => cnumber,
+    'Body' => text
+  }
+  return jcurl("--user #{EXOTEL_SID}:#{EXOTEL_TOKEN} '#{EXOTEL_SMS_URL}'",params)
+end
+
+def dial_number(cnumber)
+  $log.info("#{Time.now} - Number being called: #{cnumber}")
+  params = {
+    'From' => cnumber,
+    'To' => "08030752589",
+    'CallerId' => "08030752589",
+    'CallType' => "trans",
+    'Url' => "http://my.exotel.in/exoml/start/#{EXOTEL_FLOW_ID}",
+    'TimeOut' => "15",
+    'TimeLimit' => "90",
+    'StatusCallback' => EXOTEL_CALLBACK
+  }
+
+  return jcurl("--user #{EXOTEL_SID}:#{EXOTEL_TOKEN} '#{EXOTEL_CALL_URL}'",params)
+end
+
+def entry_writer(entry_val, cnumber, orderid, orefnumber, retries)
+  #make entry in the database
+  #basically initializes the entry for the call
+  a = AutoCaller.new
+  a.CallSid = entry_val["Sid"]
+  a.CallTime = entry_val["StartTime"]
+  a.Cnumber = cnumber
+  a.Orefnumber = orefnumber
+  a.Onumber = orderid
+  a.Status = entry_val["Status"]
+  a.retries = retries || 0
+  a.save
+end
+
+def make_entry(entry_val, cnumber, orderid, orefnumber, retries)
+  begin
+    entry_writer(entry_val, cnumber, orderid, orefnumber, retries)
+  rescue Exception =>e
+    $log.info("#{Time.now} - make_entry errored out - #{e}")
+    sleep(5)
+    begin
+      entry_writer(entry_val, cnumber, orderid, orefnumber, retries)
+    rescue Exception => e
+      $log.info("#{Time.now} - make_entry errored out even during ensure- #{e}")
+    end
+  end
+end
+
+def check_state(callsid)
+  #check database for sid's status
+  if callsid
+    begin
+      a = AutoCaller.find_by_CallSid(callsid)
+    rescue Exception => e
+      return nil
+    end
+    return nil unless a
+    case a.Status.downcase
+    when "in-progress" then return nil
+    when "no-answer" then return back_in_queue(a)
+    when "completed" then return check_true_completeness(a)
+    else return nil
+    end    
+  end
+
+  #oddly no parameter was passed.
+  return nil  
+end
+
+def back_in_queue(auto_caller)
+  if auto_caller
+    if auto_caller.retries.to_i >= NUMBER_OF_RETRIES
+      push_to_manualintervent(auto_caller)
+    else
+      push_to_queue(auto_caller)
+    end
+  end
+  return true
+end
+
+def check_true_completeness(auto_caller)
+  if auto_caller
+    if auto_caller.digits
+      case auto_caller.digits.gsub("\"","")
+      when "1" then return move_to_confirmed(auto_caller)
+      when "2" then return move_to_cancelled(auto_caller)
+      else return back_in_queue(auto_caller)
+      end
+    else
+      return back_in_queue(auto_caller)
+    end
+  end
+  return true
+end
+
+def manual_intervent(auto_caller)
+  if auto_caller
+    $log.info("#{Time.now} - Order #{auto_caller.Onumber} moved to Manual Intervent")
+    m = ManualIntervent.new
+    m.order_id = auto_caller.Onumber
+    m.order_number = auto_caller.Orefnumber
+    m.calltried_on = DateTime.now
+    m.reason = "no-answer"
+    m.save
+    begin
+      o = Spree::Order.find(auto_caller.Onumber)
+      o.initiate_robot_caller("Customer has not answered the IVR call. Initiating manual intervention. ") if o
+      o.move_to_manual_intervent
+    rescue Exception=> e
+      $log.info("Something went wrong with method: push_to_manualintervent")
+      $log.info("Exception => #{e}")
+    end
+  end
+  return true
+end
+
+def push_to_manualintervent(auto_caller)
+  begin
+    manual_intervent(auto_caller)
+  rescue Exception => e
+    $log.info("#{Time.now} - push_to_manualintervent failed for order_id #{auto_caller.Onumber} - #{e}")
+    $log.info("#{Time.now} - Trying manual intervent again for order_id #{auto_caller.Onumber}")
+    begin
+      manual_intervent(auto_caller)
+    rescue Exception => e
+      $log.info("#{Time.now} - move_to_manualintervent for order_id #{auto_caller.Onumber} - GOD HELP US!!!")
+      return true
+    end
+  end
+end
+
+def push_to_queue(auto_caller,add_retry=nil)
+  begin
+    if auto_caller
+      if auto_caller.retries.to_i > NUMBER_OF_RETRIES
+        push_to_manualintervent(auto_caller)
+        return
+      end
+      o = OrderConfirmBuffer.new
+      o.order_id = auto_caller.Onumber
+      o.order_number = auto_caller.Orefnumber
+      o.phone_number = auto_caller.Cnumber
+      o.retry = auto_caller.retries.to_i + 1 unless add_retry
+      o.recall_at = DateTime.now + (o.retry*o.retry*RECALL_GAP).minutes unless add_retry
+      o.save
+      unless add_retry
+        begin
+          m = Spre::Order.find(auto_caller.Onumber)
+          m.initiate_robot_caller("Customer did not receive the IVR call. Will try again at #{o.recall_at.to_s}") if o
+          $log.info("#{Time.now} - Customer with number #{auto_caller.Cnumber} is being pushed back to queue")
+        rescue Exception =>e
+          $log.info("Somwthing went wrong with method: push_to_queue")
+          $log.info("Exception => #{e}")
+        end
+      end
+    end
+  rescue Exception => e
+    $log.info("#{Time.now} - push_to_queue failed for order_id #{auto_caller.Onumber} - #{e}")
+    return true
+  end
+end
+
+def move_to_confirmed(auto_caller)
+$log.info("#{Time.now} - Beginning to move order #{auto_caller.Onumber}")
+  begin
+    if auto_caller
+      $log.info("#{Time.now} - Moving order with id: #{auto_caller.Onumber} to confirmed")
+      o = Spree::Order.find(auto_caller.Onumber)
+      if o
+        begin
+          o.initiate_robot_caller("Order has been confirmed by customer over IVR")
+        rescue Exception=>e
+          $log.info("Something went wrong with method: move_to_confirmed")
+          $log.info("Exception => #{e}")
+        end
+        o.move_to_auto_confirm
+        order_number = o.number.to_s
+        order_total = o.total.to_s
+        send_sms(auto_caller.Cnumber,"Your Styletag Order: #{order_number} has been successfully confirmed. Your COD Order amounts to Rs. #{order_total} and will be shipped within 3-4 weeks",true)
+      end
+      return true
+    end
+  rescue Exception => e
+    $log.info("#{Time.now} - move_to_confirmed failed for order_id #{auto_caller.Onumber} - #{e}")
+    return true
+  end
+end
+
+def move_to_cancelled(auto_caller)
+  begin
+    if auto_caller
+      $log.info("#{Time.now} - Moving order with id: #{auto_caller.Onumber} to cancelled")
+      o = Spree::Order.find(auto_caller.Onumber)
+      if o
+        begin
+          o.initiate_robot_caller("Order has been cancelled by customer over IVR")
+        rescue Exception=>e
+          $log.info("Something went wrong with method: move_to_cancelled")
+          $log.info("Exception => #{e}")
+        end
+        o.move_to_auto_cancellation
+      end
+      return true
+    end
+  rescue Exception => eb
+    $log.info("#{Time.now} - move_to_cancelled failed for order_id #{auto_caller.Onumber} - #{eb} ")
+    return true
+  end
+end
+
+$log.info("\n\n------#{Time.now}------\n\n")
+thread_dispatcher

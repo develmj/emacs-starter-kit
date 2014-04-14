@@ -1,0 +1,16 @@
+require 'rubygems'
+require 'nokogiri'
+require 'pp'
+
+Event = Struct.new :name , :link , :date
+
+doc = Nokogiri::HTML DATA
+
+events = doc.css("div.nof.clearfix").map do |eventnode|
+  name = eventnode.at_css("h2 a").text.strip
+  link = eventnode.at_css("h2 a")['href']
+  date = eventnode.at_css("div.pl.intro").text.strip
+  Event.new name , link , date
+end
+
+pp events

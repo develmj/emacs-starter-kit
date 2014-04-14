@@ -1,0 +1,33 @@
+require 'cgi'
+
+d = []
+c.each{|x|
+  user_id = x.user.id
+  ints = Interaction.where("user_id = #{user_id} and url LIKE '%?src%'")
+  last_int = nil
+  last_int = ints.last if ints and ints.count > 0
+  odt = x.created_at
+  idt = last_int ? last_int.created_at : x.created_at
+  if odt-idt > 864000
+    x.source = "Organic"
+    x.save!(:validate => false)
+    d << x
+  else
+    if last_int
+      src = CGI::parse(last_int.url).first.last.last
+      if src
+        x.source = src
+        x.save!(:validate => false)
+      else
+        x.source = "Organic"
+        x.save!(:validate => false)
+        d << x
+      end
+    else
+      x.source = "Organic"
+      x.save!(:validate => false)
+      d << x
+    end
+  end
+}
+

@@ -1,0 +1,115 @@
+require 'rubygems'
+require 'csv'
+require 'active_support'
+require 'base64'
+require 'net/smtp'
+require 'smtp_tls.rb'
+
+ENV['RAILS_ENV'] = ARGV.first || ENV['RAILS_ENV'] || 'production'
+require File.expand_path(File.dirname(__FILE__) + "/config/environment")
+
+SMTP_PARAMS = {
+  :smtp_server => "smtp.gmail.com",
+  :smtp_port => 587,
+  :smtp_helo => "StyletagNotification",
+  :from_address => "notification@styletag.com",
+  :smtp_username => "notification@styletag.com",
+  :smtp_password => Base64.decode64("c3R5bGV0YWcxMjM=")
+}
+SEND_TO_ADDS = ["gladwin.bosco@styletag.com","rajiv.piplani@styletag.com","vivek.sp@styletag.com","mj.iyer@styletag.com"]
+
+def sendmail_plain(msg, config)
+      Net::SMTP.start( config[:smtp_server],
+                       config[:smtp_port],
+                       config[:smtp_helo],
+                       config[:smtp_username],
+                       config[:smtp_password],
+                       :plain ) { |smtp|
+    smtp.send_message( msg, config[:from_address], config[:to_address] )
+  }
+end
+
+def gen_smtp_body(file)
+  filecontent = File.read(file)
+  encodedcontent = [filecontent].pack("m")
+  marker = "AUNIQUEMARKER"
+  
+  begin
+    
+    body =<<EOF
+This is a test mail with attachment
+EOF
+    
+  part1 =<<EOF
+From: Styletag Worker <notification@styletag.com>
+Subject: [123456789]
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary=#{marker}
+--#{marker}
+EOF
+    
+  part2 =<<EOF
+Content-Type: text/plain
+Content-Transfer-Encoding:8bit
+
+#{body}
+--#{marker}
+EOF
+    
+    # Define the attachment section
+    part3 =<<EOF
+Content-Type: multipart/mixed; name=\"#{File.basename(file)}\"
+Content-Transfer-Encoding:base64
+Content-Disposition: attachment; filename="#{File.basename(file)}"
+
+#{encodedcontent}
+--#{marker}--
+EOF
+    
+  mailtext = part1 + part2 + part3
+    return mailtext
+  rescue Exception => e
+    print "Exception occured in smtp_body" + e.inspect
+  end
+end
+
+def generate_email
+  smtp_opts = SMTP_PARAMS
+  SEND_TO_ADDS.each{|x|
+  smtp_opts[:to_address] = x
+  begin
+    sendmail_plain(gen_smtp_body("/tmp/dispatch_report.csv"),smtp_opts)
+  rescue Exception => e
+    print "Exception occured in generate email: " + e.inspect
+  end 
+  }
+end
+
+st_time_search = Time.now.strftime("%Y-%m-01 00:00:00")
+end_time_search = Time.now.strftime("%Y-%m-%d 23:59:00")
+
+#Remove the old file
+File.delete("/tmp/dispatch_report.csv")
+
+#Generate new file
+CSV.open("/tmp/dispatch_report.csv", "wb") do |csv|
+  csv << ["Order ID","Tracking Number","Shipping Vendor","Order Date","Amount","Payment Method","City","State","Pincode","Vendor Codes"]
+  Staging.where("created_at between '#{st_time_search}' and '#{end_time_search}'").select("order_id, trackno, created_at, amount,shipment_process_id").includes(:order =>[:ship_address]).each do |stage|
+    csv << [stage.order_id,
+            stage.trackno.to_s,
+            stage.shipment_process.try(:name).to_s,
+            stage.created_at,
+            stage.amount,
+            stage.order.payment_method.name,
+            stage.order.ship_address.city,
+            stage.order.ship_address.state,
+            stage.order.ship_address.zipcode,
+            stage.order.line_items.map{|x| x.variant.sku[3..5]}.join(";")
+           ]
+  end
+end
+
+#Check if file exists
+if File.exists?("/tmp/dispatch_report.csv")
+  generate_email
+end

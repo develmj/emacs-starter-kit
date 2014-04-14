@@ -1,0 +1,211 @@
+require 'rubygems'
+require 'active_support'
+require 'rss/maker'
+require 'garb'
+require 'base64'
+require 'net/smtp'
+require '/home/stlocal/smtp_tls.rb'
+require 'curb-fu'
+
+# Params
+GEN_FEED = ARGV[0] ? ARGV[0] : :all
+RSS_FILE = "/home/stlocal/cohort.rss"
+
+SMTP_PARAMS = {
+  :smtp_server => "smtp.gmail.com",
+  :smtp_port => 587,
+  :smtp_helo => "StyletagNotification",
+  :from_address => "notification@styletag.com",
+  :smtp_username => "notification@styletag.com",
+  :smtp_password => Base64.decode64("c3R5bGV0YWcxMjM=")
+}
+SEND_TO_ADDS = ARGV[3] ? [ARGV[3]] : ["mj.iyer@styletag.com","satish.singh@styletag.com","vivek.gatty@styletag.com"]
+SEND_TO_SMS = ["8884345180","9740333189","9845488741"]
+
+
+def generate_sms(feeder)
+  th = (Time.now + 5.hours + 30.minutes).hour
+  unless th > 8 and th < 21
+    return
+  end
+  SEND_TO_SMS.each{|x|
+    CurbFu.post({
+                  :host => 'styletag:ab33139dc42ecfc5dcbe576871dd94df6d3037e4@twilix.exotel.in/v1/Accounts/styletag/Sms/send',
+                  :protocol => "https"
+                },
+                {
+                  'To' => x,
+                  'Body' => "#{gen_sms_body(feeder)}"
+                })
+  }
+end
+
+def gen_sms_body(feeder)
+  sms_msg = ""
+  feeder.each{|x| sms_msg << x[:description] + '  ' }
+  return sms_msg
+end
+
+def sendmail_plain(msg, config)
+      Net::SMTP.start( config[:smtp_server],
+                       config[:smtp_port],
+                       config[:smtp_helo],
+                       config[:smtp_username],
+                       config[:smtp_password],
+                       :plain ) { |smtp|
+    smtp.send_message( msg, config[:from_address], config[:to_address] )
+  }
+end
+
+class Exits
+  extend Garb::Model
+  metrics :visitors
+  dimensions :visitorType
+end
+
+def google_analytics
+  Garb::Session.login("mj.iyer@styletag.com", Base64.decode64("dmFzdW1hMzg="))
+  Garb::Session.access_token = "a25226781w49074621p49549811"
+  profile = Garb::Management::Profile.all.detect {|p| p.web_property_id == 'UA-25226781-1'}
+  return Exits.results(profile, {:start_date => DateTime.parse(ARGV[1]), :end_date => DateTime.parse(ARGV[2])}).map{|x| eval "x.visitors"}
+end
+
+def generate_feed(feeder)
+  f = File.open(RSS_FILE,"w")
+  version = "2.0"
+  content = RSS::Maker.make(version) {|m|
+    m.channel.title = "Styletag Cohort Data Feed"
+    m.channel.link = "http://develmj.com/"
+    m.channel.description = "Daily Cohort Data Feed"
+    feeder.each{|x|
+      i = m.items.new_item
+      i.title = x[:title]
+      i.description = x[:description]
+      i.date = x[:date]
+    }
+  }
+  f.write(content.to_s)
+  f.close
+end
+
+def gen_smtp_body(feeder)
+begin
+smtp_msg = ""
+feeder.each{|x| smtp_msg << x[:description] + "<br\ >" }
+
+msg =<<EOF
+Subject: [Cohort] #{(Time.now + 5.hours + 30.minutes).to_s}
+Content-Type: text/html;charset="us-ascii"
+Content-Transfer-Encoding: quoted-printable
+
+#{smtp_msg}
+
+EOF
+return msg 
+rescue Exception => e
+print "Exception occured in smtp_body" + e
+end
+end
+
+def generate_email(feeder)
+  smtp_opts = SMTP_PARAMS
+  SEND_TO_ADDS.each{|x|
+  smtp_opts[:to_address] = x
+  begin
+    sendmail_plain(gen_smtp_body(feeder),smtp_opts)
+  rescue Exception => e
+    print "Exception occured: " + e.inspect
+  end 
+  }
+end
+
+def run_mysql_cmd(str)
+  puts "mysql -u root -A st_beta_prod -e '#{str}'"
+  `mysql -u root -A st_beta_prod -e '#{str}'`
+end
+
+def get_daily_data(param, func = "COUNT(DISTINCT id)",rs_date,re_date)
+  if :orders == param
+    data = run_mysql_cmd("SELECT #{func} FROM #{param.to_s} WHERE ((completed_at >= timestamp(\"#{rs_date}\") and completed_at <= timestamp(\"#{re_date}\")) AND (state = \"complete\") )")
+  elsif :interactions == param
+    data = run_mysql_cmd("SELECT #{func} FROM #{param.to_s} WHERE (created_at >= timestamp(\"#{rs_date}\") and created_at >= timestamp(\"#{re_date}\"))")
+  else
+    data = run_mysql_cmd("SELECT #{func} FROM #{param.to_s} WHERE (created_at >= timestamp(\"#{rs_date}\") and created_at >= timestamp(\"#{re_date}\"))")
+  end
+  return data.split("\n").last if data.class == String
+  return ""
+end
+
+def process_info(type)
+  tc = Time.now #Capturing current Time
+  if :sms == type
+    ret = [
+           [:orders,nil],
+           [:orders,["SUM(total)","Order Value Total: "]],
+           [:users,["COUNT(DISTINCT id)","Registration: "]],
+           [:interactions,["COUNT(DISTINCT user_id)","User Logins: "]]
+          ].map{|x,y|
+      {
+        :description => y ? y[1] + get_daily_data(x,y[0]) : "#{x.to_s.capitalize}: #{get_daily_data(x)}",
+      }
+    }
+    nv,rv = google_analytics
+    ret << {:description => "GA New Visitors: #{nv}"}
+    ret << {:description => "GA Returning Visitors: #{rv}"}
+  elsif :email == type
+    ret = [
+           [:orders,nil],
+           [:orders,["SUM(total)","Order Value Total: Rs. "]],
+           [:users,["COUNT(DISTINCT id)","User Registrations: "]],
+           [:interactions,["COUNT(DISTINCT user_id)","User Logins: "]]
+          ].map{|x,y|
+      {
+        :description => y ? y[1] + get_daily_data(x,y[0]) : "Number of #{x.to_s.capitalize}: #{get_daily_data(x)}",
+      }
+    }
+    nv,rv = google_analytics
+    ret << {:description => "Google Analaytics New Visitors: #{nv}"}
+    ret << {:description => "Google Analaytics Returning Visitors: #{rv}"}
+  elsif :rss == type
+    ret = [
+           [:orders,nil],
+           [:orders,["SUM(total)","Order Value Total: Rs. "]],
+           [:users,["COUNT(DISTINCT id)","User Registrations: "]],
+           [:interactions,nil]
+          ].map{|x,y|
+      {
+        :description => y ? y[1] + get_daily_data(x,y[0]) : "Number of #{x.to_s.capitalize} so far: #{get_daily_data(x)}",
+        :title => "Daily Data Feed - #{x.to_s.capitalize}",
+        :date => tc
+      }
+    }
+    nv,rv = google_analytics
+    ret << {:description => "Google Analaytics New Visitors: #{nv}", :title => "Daily Data Feed - Google Analytics", :date => tc}
+    ret << {:description => "Google Analaytics Returning Visitors: #{rv}", :title => "Daily Data Feed - Google Analytics", :date => tc}
+  end
+  return ret if ret
+  return []
+end
+
+def generate
+  if :email == GEN_FEED or ":email" == GEN_FEED
+    generate_email(process_info(:email))
+  elsif :rss == GEN_FEED or ":rss" == GEN_FEED
+    generate_feed(process_info(:rss))
+  elsif :sms == GEN_FEED or ":sms" == GEN_FEED
+    generate_sms(process_info(:sms))
+  elsif :all == GEN_FEED or ":all" == GEN_FEED
+    generate_email(process_info(:email))
+    generate_feed(process_info(:rss))
+    generate_sms(process_info(:sms))
+  elsif :sms_and_email or ":sms_and_email" == GEN_FEED
+    generate_email(process_info(:email))
+    generate_sms(process_info(:sms))
+  end
+end
+
+def conditions
+end
+
+generate
+

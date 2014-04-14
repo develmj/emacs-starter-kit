@@ -1,0 +1,19 @@
+def rec_visited(user,viewed_product)
+  if user_id and product
+    if viewed_product.class == Array
+      viewed_product.each{|x|
+        NewSpreeSt::Application::Similus.add_activity(user, :show, x)
+      }
+    elsif viewed_product.class == Spree::Product
+      NewSpreeSt::Application::Similus.add_activity(user, :show, viewed_product)
+    end
+  end
+end
+
+def rec_similiar(viewed_product)
+  NewSpreeSt::Application::Similus.similar_to(viewed_product)
+end
+
+def rec_recommended(user)
+  NewSpreeSt::Application::Similus.recommended_for(user)
+end

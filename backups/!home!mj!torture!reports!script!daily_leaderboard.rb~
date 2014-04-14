@@ -1,0 +1,59 @@
+def get_data
+  o = Spree::Order.select("id,user_id,total,completed_at").includes(:payments).where("state like 'complete' and cs_state not like 'initiate_cancel' and completed_at between ? and ? ",(DateTime.now.beginning_of_month - 5.hours - 30.minutes),(DateTime.now.end_of_month - 5.hours - 30.minutes))
+  cc_id = Spree::PaymentMethod::Ebsin.where(:environment => Rails.env.to_s ,:active => true).first.try(:id)
+  u = {}
+  o.each{|x|
+    if u[x.user_id]
+      u[x.user_id][0] += 1
+      u[x.user_id][1] += x.total.to_f
+      if x.completed_at.day < 16
+        u[x.user_id][1] += [1000.0,x.total.to_f].min if x.payment.payment_method_id == cc_id
+      end
+    else
+      u[x.user_id] = [1,x.total.to_f]
+    end
+  }
+  
+  ret = u.to_a.sort{|x,y| x[1][1] <=> y[1][1]}.reverse[0..19]
+  return ret
+end
+
+
+def state_change(old,new)
+  new_h = {}
+  old_h = {}
+  down = []
+  same = []
+  up = []
+  entry = []
+  exit = []
+  old.each_with_index{|x,y|
+    old_h[x[0]] = [y,x]
+  }
+
+  new.each_with_index{|x,y|
+    new_h[x[0]] = [y,x]
+  }
+
+  old_h.keys.each{|x|
+    if new_h[x]
+      data = old_h[x][1]
+      if old_h[x][0] < new_h[x][0]
+        down << [data[0],new_h[x][0]]
+      elsif old_h[x][0] > new_h[x][0]
+        up << [data[0],new_h[x][0]]
+      elsif old_h[x][0] == new_h[x][0]
+        same << [data[0],new_h[x][0]]
+      end
+    else
+      data = old_h[x][1]
+      exit << [data[0],old_h[x][0]]
+    end
+  }
+
+  (new_h.keys - old_h.keys).each{|x|
+    data = new_h[x][1]
+    entry << [data[0],new_h[x][0]]
+  }
+  return up,down,same,exit,entry
+end

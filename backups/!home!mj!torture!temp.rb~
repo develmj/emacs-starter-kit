@@ -1,0 +1,257 @@
+  def get_orders(searchval, st_date, end_date) #accepts 3 parameters, order_no, start_date and End_date
+    paymentid = 0
+    pincode = 0
+    searchval = searchval.split(",") unless searchval.blank?
+    unless searchval.blank?
+      @orders = Spree::Order.where(:number => searchval)
+    else 
+      start_date = DateTime.new(st_date['year'].to_i,st_date['month'].to_i,st_date['day'].to_i,0,0,0,'+0')
+      end_date = DateTime.new(end_date['year'].to_i,end_date['month'].to_i,end_date['day'].to_i,23,59,59,'+0')
+      @orders = Spree::Order.where("completed_at>=? and completed_at<=? and (state like 'complete' or state like 'canceled')",start_date,end_date)
+    end 
+    
+    unless @orders.nil? || @orders.blank? # Do this only when order is not nil or blank!
+      filename =  "eorders.txt" # create a file name with last completed order id. "#{Time.now.strftime("%Y%m%d%H%M%S")}_orders_export.csv"
+      CSV.open("public/export/#{filename}", "w",  :col_sep => "\t", :quote_char => "'") {|row|
+        @orders.each {|order| # for each order do this!
+          refund_credit_sum = 0
+          begin
+            query_string = "(label = 'Refund Credit') OR (label = 'Refund Credits') OR (label = 'RefundCredit') OR (label = 'RefundCredits')"
+            refund_credit_sum = order.adjustments.where(query_string).map(&:amount).compact.sum.abs unless order.adjustments.blank?
+          rescue Exception => e
+            logger.info("Same old error with could not find store credit for some god-forsaken id, refund credit, Details #{e} and order details : #{order.id}")
+          end
+
+          delivery_date = 2.weeks.since(order.created_at) # 2 weeks after creation date of order!
+          unless order.payments.first.nil? # Do only if their is payment available. 
+            paymentid = order.payments.first.payment_method_id 
+            case order.payments.first.payment_method_id # Switch case for payment methods!
+            when 1
+              satype = 'ON'# when transaction type is online
+            when 2
+              satype = 'OD' # when transaction type is on delivery
+            else
+              satype = ' ' # when transaction type is not mentioned
+            end
+            begin
+              shipping_info = Spree::Address.find(order.ship_address_id)
+              state = Spree::State.find(shipping_info.state_id)
+              country = Spree::Country.find(shipping_info.country_id)
+              pincode = shipping_info.zipcode.to_s.first(6)
+              return_code =  PinCodeInfo.check_service(pincode,paymentid)
+            rescue Exception => e
+              logger.info("some problem here #{e.backtrace}")
+            end
+            if return_code ==nil
+              return_code = "0"
+            end
+            
+            order.line_items.each do |item| # Do this for each item in the order.
+              color = item.variant ? item.variant.product.description : nil
+              clr = ""
+              begin
+                if !color.nil?  
+                  #   clr = color.split("\n").compact.map{|x| x if x.include?("Colour")}.compact[0].split(/: /).try(:last).split.join(" ")
+                  clr=item.variant.product.product_properties.collect{|p| p.value if p.property_id==Spree::Property.find_by_name("color").id}.compact
+                end
+              rescue Exception => e
+                logger.info("Same old error with could not find store credit for some god-forsaken id-- color split, color split... Details #{e},   Order=#{order.id}")
+              end
+              posaleid = 0
+              posalename = ""  
+              stdate = 0
+              eddate = 0
+              gen_st_date = 0
+              gen_ed_date = 0
+              shipconfigid = 0
+
+              unless (Saledata.find_by_line_item_id(item.id)).nil? 
+                as = Saledata.find_by_line_item_id(item.id)
+                shipconfigid = as.ship_config_is
+                podata = PoSale.find(as.po_sale_id)
+                posaleid = podata.try(:id)
+                posalename = podata.try(:event_name)
+                stdate = podata.try(:st_date)
+                eddate = podata.try(:ed_date)
+                gen_st_date = gen_ed_date = nil
+                if stdate == 0
+                  gen_st_date=nil
+                else
+                  gen_st_date=stdate.strftime("%d-%m-%Y")
+                end
+                if eddate == 0
+                  gen_ed_date=nil
+                else
+                  gen_ed_date=eddate.strftime("%d-%m-%Y")
+                end
+                if shipconfigid == nil
+                  shipconfigid = 0
+                end
+              end
+              variants = Spree::Variant.where(:id => item.variant_id) # Find Variants for each item with their variant id
+
+              break if variants.blank?
+
+              weight =0 
+              owner = "nil"
+              variants.each do |variant|  # For each variant in variants do the following :
+                variant_price = Spree::Price.where(:variant_id => variant.id)
+                variant_price.each do |itemprice|
+                  puts itemprice.price
+                  
+                  lineitem = Spree::LineItem.where(:order_id => order.id, :variant_id => variant.id).first # lineitem will be array of lie_items row
+                  # get discounted price per item here!
+                  puts "*"*100
+                  puts "line item here"
+                  puts lineitem.price
+                  puts lineitem.quantity
+                  total_item_price = lineitem.price*lineitem.quantity # Get the total amount of item in order!
+                  puts total_item_price
+                  adjustment_promotion = order.adjustments.map { |adjustment| adjustment unless ((adjustment.source_type == "Spree::Shipment") || (adjustment.label.downcase.gsub(" ", "") == "refundcredits") ||(adjustment.label.downcase.gsub(" ", "") == "refundcredit")) }.reject(&:blank?) 
+                  adjustment_shipment = Spree::Adjustment.where(:adjustable_id => order.id, :source_type => 'Spree::Shipment').first # Get Adjustment of shipment to find freight charges for this order.
+                  if (refund_credit_sum >= total_item_price)
+                    refund_credit_amount = total_item_price
+                    refund_credit_sum = (refund_credit_sum - total_item_price)
+                    
+                  else
+                    refund_credit_amount = refund_credit_sum
+                    refund_credit_sum = 0
+                  end
+                  unless adjustment_promotion.blank? 
+                    # Do this only when coupon is used! i.e. promotion code is used.
+                    # Promotion is not required since it has to be coded as - "Descount" instead of promotion.code, for all adjustments which are clubbed together.
+                    # promotion =  Promotion.find(adjustment_promotion.source_id) # Find promotion by id to get the coupon detail.
+                    @ad_promotion = 0.0 # Adjustment promotion amount to be added
+
+                    adjustment_promotion.each{|a| @ad_promotion += a.amount }
+                    
+                    discount_contribution = (-(@ad_promotion).to_f*total_item_price)/order.item_total # Getting the over all discount contribution
+                    total_discount_on_item = discount_contribution/lineitem.quantity # Getting the total discount on particular item
+                    item_contribution = (total_item_price-discount_contribution)/lineitem.quantity # Calculate the item price using the formula, to get the adjustment compensated among the item price in the order.
+                    weight = variant.weight.to_s
+                    if weight.blank?
+                      weight = 0
+                    end
+                    owner = variant.owner
+                    if owner.blank?
+                      owner = "nil"
+                    end
+                    row_ad1= shipping_info.try(:address1).gsub("\"","").gsub("'","") if shipping_info.present?
+                    row_ad2=shipping_info.try(:address2).gsub("\"","").gsub("'","") if shipping_info.present?
+                    row_ad3=shipping_info.try(:address3).gsub("\"","").gsub("'","") if shipping_info.present?
+
+                    row << [
+                            order.id,order.completed_at.strftime("%d-%m-%Y"),
+                            order.user_id,
+                            delivery_date.strftime("%d-%m-%Y"),
+                            adjustment_shipment.nil? ? " " : ("%.2f" % adjustment_shipment.amount),
+                            variant.sku,variant.cost_price.nil? ? " " : ("%.2f" % variant.cost_price),
+                            itemprice.price.nil? ? " " : ("%.2f" % itemprice.price),
+                            lineitem.quantity,
+                            satype,order.created_at.strftime("%H:%M"),
+                            item_contribution.nil? ? " " : ("%.2f" % item_contribution),
+                            "Discount",
+                            @ad_promotion.blank? ? " " : ("%.2f" % -@ad_promotion.to_f),
+                            total_discount_on_item.nil? ? " " : ("%.2f" % total_discount_on_item),
+                            #write exception here
+                            shipping_info.try(:salutation),
+                            shipping_info.try(:firstname).to_s.first(35),
+                            shipping_info.try(:lastname),
+                            row_ad1,
+                            row_ad2,
+                            row_ad3,
+                            shipping_info.try(:city),
+                            shipping_info.try(:zipcode).to_s.first(6),
+                            state.name,
+                            country.name,
+                            shipping_info.try(:phone).first(15),
+                            order.email,
+                            (state.name == "Karnataka") ? "VAT" : "CST",
+                            order.number,
+                            posaleid,
+                            posalename,
+                            variant.sku[3,3],
+                            gen_st_date,
+                            gen_ed_date,
+                            clr,
+                            refund_credit_amount,
+                            weight,
+                            owner,
+                            variant.raise_po,
+                            shipconfigid,
+                            return_code.gsub(/[^0-9A-Za-z]/,"")
+                           ] #inserting values in according to header specified 
+                  else
+                    begin
+                      row << [order.id,order.completed_at.strftime("%d-%m-%Y"),
+                              order.user_id,
+                              delivery_date.strftime("%d-%m-%Y"),
+                              adjustment_shipment.nil? ? " " : ("%.2f" % adjustment_shipment.amount),
+                              variant.sku,
+                              variant.cost_price.nil? ? " " : ("%.2f" % variant.cost_price),
+                              itemprice.price.nil? ? " " : ("%.2f" % itemprice.price),
+                              lineitem.quantity,
+                              satype,
+                              order.created_at.strftime("%H:%M"),
+                              itemprice.price.nil? ? " " : ("%.2f" % itemprice.price),
+                              ' ',
+                              ' ',
+                              ' ',
+                              #write execption here
+                              shipping_info.try(:salutation),
+                              shipping_info.try(:firstname).to_s.first(35),
+                              shipping_info.try(:lastname),
+                              shipping_info.try(:address1).gsub("\"","").gsub("'",""),
+                              shipping_info.try(:address2).gsub("\"","").gsub("'",""),
+                              shipping_info.try(:address3).gsub("\"","").gsub("'",""),
+                              shipping_info.try(:city),
+                              shipping_info.try(:zipcode).to_s.first(6),
+                              state.name,
+                              country.name,
+                              shipping_info.try(:phone).first(15),
+                              order.email,
+                              (state.name == "Karnataka") ? "VAT" : "CST",
+                              order.number,
+                              posaleid,
+                              posalename,
+                              variant.sku[3,3],
+                              gen_st_date,
+                              gen_ed_date,
+                              clr,
+                              refund_credit_amount,
+                              weight,
+                              owner,
+                              variant.raise_po,
+                              shipconfigid,
+                              return_code.gsub(/[^0-9A-Za-z]/,"")
+                              
+
+                             ] #inserting values in according to header specified
+                      
+                    rescue Exception => e
+                      
+
+                    end
+                  end 
+                end 
+              end 
+            end 
+          end
+
+        } 
+      } 
+
+      redirect_to billing_path, :notice => "Here is your file: <a href='/billing/send_file/eorders'>eorders.txt</a>".html_safe
+      #send_file("public/export/#{filename}",:filename => "billing.txt",:type => "csv",:disposition => 'attachment')
+      #@div_notice="down load"
+      #@filepath="#{filename}"
+      #return true
+
+    else
+      #@div_notice="no link"
+      #send_file("public/export/#{filename}",:filename => "no_data.txt",:type => "csv",:disposition => 'attachment')
+      redirect_to billing_path, :notice => "There is not data available for your query!! Try something else???"
+      #@filepath="nolink"
+      #return false
+    end 
+  end

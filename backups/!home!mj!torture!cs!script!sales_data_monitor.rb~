@@ -1,0 +1,41 @@
+require 'rubygems'
+require 'google_drive'
+
+ENV['RAILS_ENV'] = ARGV.first || ENV['RAILS_ENV'] || 'production'
+require File.expand_path(File.dirname(__FILE__) + "/../config/environment.rb")
+
+
+def get_sheet(url)
+end
+
+def sheet_exists?(url)
+end
+
+fd =[]
+all_events = Spree::ActiveSaleEvent.select("id,name,start_date,end_date,lft,rgt,eventable_id,eventable_type,is_active,is_permanent").includes(:eventable => [:products => [:variants]]).where("is_active = 1 and start_date <= ? and end_date >= ?",Time.zone.now,Time.zone.now)
+
+all_events.each{|x|
+  d_id = x.id
+  d_name = x.name
+  d_start_date = x.start_date
+  d_end_date = x.end_date
+  d_category = a.root.name
+  d_eventable = a.eventable
+  d_products = d_eventable.products.map{|x| x}
+  d_variants = d_products.map{|x| x.variants.map{|y| y unless y.is_master?}.compact}.flatten
+  d_ship_config = d_variants.first.ship_configuration_id
+  d_owner = d_variants.first.owner
+  d_no_of_skus = d_variants.count
+  d_inventory_value = d_variants.map(&:price).sum
+  d_current_stock = d_variants.map(&:count_on_hand).sum
+  d_variant_ids = d_variants.map(&:id)
+  d_line_items_complete = Spree::LineItem.select("id,order_id,variant_id,quantity,price").where("(select state from spree_orders s where s.id = order_id) = 'complete' and variant_id IN (#{d_variant_ids.join(',')})").map{|x| x}
+  d_line_items_canceled = 
+
+  
+  d_gross_items_booked = d_line_items.map(&:quantity).sum
+  d_gross_items_booked_value = d_line_items.inject(0){|sum,x| sum+= x.price*x.quantity}.to_i
+  d_net_items_booked = 
+  
+}
+puts final_data.inspect

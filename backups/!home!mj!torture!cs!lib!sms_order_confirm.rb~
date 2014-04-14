@@ -1,0 +1,16 @@
+require 'rubygems'
+
+ENV['RAILS_ENV'] = ARGV.first || ENV['RAILS_ENV'] || 'production'
+
+require File.expand_path(File.dirname(__FILE__) + "/../config/environment")
+st=Time.now-30.minutes
+ed=Time.now-10.minutes
+orders=Spree::Order.select("id,state,cs_state,completed_at").where("state like 'complete' and cs_state=NULL and completed_at between ? and ?",st,ed)
+begin
+orders.each{|o|
+o.cs_state="manual_intervent"
+o.save
+}
+rescue Exception => e
+end
+

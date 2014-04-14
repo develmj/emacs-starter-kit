@@ -1,0 +1,87 @@
+
+def clear_history
+  history = []
+
+  ds = AWSCloudSearch::CloudSearch.new('stsearch-hakmf3joj5mtbgfs4is2uu4iw4', 'ap-southeast-1')
+  batch = AWSCloudSearch::DocumentBatch.new
+  search_request = AWSCloudSearch::SearchRequest.new
+  search_request.size = 10000
+  search_request.bq = "formatcol:666"
+  
+  history = ds.search(search_request).hits.map{|x| x["id"].to_i}
+  ds = AWSCloudSearch::CloudSearch.new('stsearch-hakmf3joj5mtbgfs4is2uu4iw4', 'ap-southeast-1')
+  
+  history.each{|x|
+    doc = AWSCloudSearch::Document.new(true)
+    doc.id = x
+    batch.delete_document doc
+  }
+  ds.documents_batch(batch)
+end
+
+def write_to_elasticache_size(map)
+  redis = Redis.new(:host => "127.0.0.1", :port => 6381, :driver => :hiredis)
+
+  cur_keys = redis.keys
+  redis.del(*cur_keys)
+  
+  map.keys.each{|x|
+    redis.set(x,map[x].to_json)
+  }
+end
+
+def write_to_elasticache_color(map)
+  redis = Redis.new(:host => "127.0.0.1", :port => 6380, :driver => :hiredis)
+
+  cur_keys = redis.keys
+  redis.del(*cur_keys)
+  
+  map.keys.each{|x|
+    redis.set(x,map[x])
+  }
+end
+
+def write_to_elasticache_ptype(map)
+  redis = Redis.new(:host => "127.0.0.1", :port => 6380, :driver => :hiredis)
+
+#  cur_keys = redis.keys
+#  redis.del(*cur_keys)
+  
+  map.keys.each{|x|
+    redis.set(x,map[x].to_json)
+  }
+end
+
+def populate_product_index
+  size_map = {}
+  color_map = {}
+  ptype_map = {}
+  
+  color_id = Spree::Property.find_by_name("color").try(&:id)
+  detail_id = Spree::Property.find_by_name("detail").try(&:id)
+  gender_id = Spree::Property.find_by_name("gender").try(&:id)
+  material_id = Spree::Property.find_by_name("material").try(&:id)
+  color_family_id = Spree::Property.find_by_name("color family").try(&:id)
+  product_type_id = Spree::Property.find_by_name("product type").try(&:id)
+
+  Spree::ActiveSaleEvent.live_active.each{|x|
+    ptype_c = []
+    x.eventable.products.active.each{|y|
+      s_map = y.option_values.map{|z| z.presentation.downcase unless z.presentation.downcase == "n/a"}.compact
+      c_map_value = y.product_properties.where(:property_id => color_family_id).last.try(&:value).to_s
+      ptype_map_value = y.product_properties.where(:property_id => product_type_id).last.try(&:value).to_s
+      ptype_c << ptype_map_value
+      color_map[y.id] = c_map_value unless c_map_value.empty?
+      size_map[y.id] = s_map unless s_map.empty?
+      ptype_map["p#{y.id}"] = ptype_map_value unless ptype_map_value.empty?
+    }
+    ptype_map["t#{x.eventable.id}"] = ptype_c.uniq
+    ptype_map["a#{x.id}"] = ptype_c.uniq
+  }
+  write_to_elasticache_size(size_map)
+  write_to_elasticache_color(color_map)
+  write_to_elasticache_ptype(ptype_map)
+end
+
+populate_product_index
+

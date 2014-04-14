@@ -1,0 +1,17 @@
+#!/bin/bash
+
+LAST_RUN=`tail -1 /mnt/autocaller/log/autocaller_run.log|cut -d " " -f 4`
+CUR_TIME=`date|cut -d " " -f 5`
+
+T1=`date --utc --date "$LAST_RUN" +%s`
+T2=`date --utc --date "$CUR_TIME" +%s`
+
+DIFF_TIME=`echo $T2-$T1|bc`
+
+if [ $DIFF_TIME -gt 600 ]
+then
+    sh /home/ubuntu/apps/autocaller/script/autocaller.sh stop
+    sh /home/ubuntu/apps/autocaller/script/autocaller.sh start
+else
+    echo "Crap"
+fi

@@ -1,0 +1,11 @@
+class CreateRecommenders < ActiveRecord::Migration
+  def change
+    create_table :recommenders do |t|
+      t.integer :id
+      t.string :host_ip
+      t.integer :port
+      t.
+      t.timestamps
+    end
+  end
+end

@@ -1,0 +1,135 @@
+require 'rubygems'
+
+ENV['RAILS_ENV'] = ARGV.first || ENV['RAILS_ENV'] || 'production'
+require File.expand_path(File.dirname(__FILE__) + "/../config/environment")
+
+def transform_it(k,v)
+  return "<#{k.to_s}>" + v.to_s + "</#{k.to_s}>"
+end
+
+def content_gen
+  live_sales = ['<?xml version="1.0" ?>','<items>']
+  live_sales2 = ['<?xml version="1.0" ?>','<items>']
+  live_sales3 = ['<?xml version="1.0" ?>','<items>']
+  
+  ActiveSale.live.each{|x|
+    category = [x.category1,x.category2,x.category3].join(",").gsub("&","&amp;")
+    x.taxon.products.where("available_on < :t",{:t => Time.now}).each{|y|
+      live_sales << '<item>'
+      live_sales << transform_it(:productid,y.id)
+      live_sales << transform_it(:productsku,y.sku)
+      live_sales << transform_it(:productname,y.name.split(" ")[0...-1].join(" ").gsub("&","&amp;"))
+      live_sales << transform_it(:productpageurl,("www.styletag.com/products/"+y.permalink+"?src=komli").gsub("&","&amp;"))
+      live_sales << transform_it(:productimageurl,y.images.first ? y.images.first.attachment.url : "")
+      live_sales << transform_it(:discount,((y.cost_price-y.price)*100/y.cost_price).to_s)
+      live_sales << transform_it(:price,y.cost_price)
+      live_sales << transform_it(:saleprice,y.price)
+      live_sales << transform_it(:categoryname,category).gsub("&","&amp;")
+      live_sales << transform_it(:main_category,x.category1.gsub("&","&amp;"))
+      
+      live_sales2 << '<item>'
+      live_sales2 << transform_it(:productid,y.id)
+      live_sales2 << transform_it(:productsku,y.sku)
+      live_sales2 << transform_it(:productname,y.name.split(" ")[0...-1].join(" ").gsub("&","&amp;"))
+      live_sales2 << transform_it(:productpageurl,("www.styletag.com/products/"+y.permalink+"?src=vizury").gsub("&","&amp;"))
+      live_sales2 << transform_it(:productimageurl,y.images.first ? y.images.first.attachment.url : "")
+      live_sales2 << transform_it(:discount,((y.cost_price-y.price)*100/y.cost_price).to_s)
+      live_sales2 << transform_it(:price,y.cost_price)
+      live_sales2 << transform_it(:saleprice,y.price)
+      live_sales2 << transform_it(:categoryname,category).gsub("&","&amp;")
+      live_sales2 << transform_it(:main_category,x.category1.gsub("&","&amp;"))
+      live_sales2 << transform_it(:catid,x.category1.gsub(" ","-").gsub("&","&amp;"))
+      live_sales2 << transform_it(:subcat1id,x.category2.gsub(" ", "-")).gsub("&","&amp;")
+      live_sales2 << transform_it(:subcat2id,x.taxon_name.gsub(" ", "-")).gsub("&","&amp;")
+
+      
+      live_sales3 << '<item>'
+      live_sales3 << transform_it(:productid,y.id)
+      live_sales3 << transform_it(:productsku,y.sku)
+      live_sales3 << transform_it(:productname,y.name.split(" ")[0...-1].join(" ").gsub("&","&amp;"))
+      live_sales3 << transform_it(:productpageurl,("www.styletag.com/products/"+y.permalink+"?src=nupinch").gsub("&","&amp;"))
+      live_sales3 << transform_it(:productimageurl,y.images.first ? y.images.first.attachment.url : "")
+      live_sales3 << transform_it(:discount,((y.cost_price-y.price)*100/y.cost_price).to_s)
+      live_sales3 << transform_it(:price,y.cost_price)
+      live_sales3 << transform_it(:saleprice,y.price)
+      live_sales3 << transform_it(:categoryname,category).gsub("&","&amp;")
+      live_sales3 << transform_it(:main_category,x.category1.gsub("&","&amp;"))
+      live_sales3 << transform_it(:catid,x.category1.gsub(" ","-").gsub("&","&amp;"))
+      live_sales3 << transform_it(:subcat1id,x.category2.gsub(" ", "-")).gsub("&","&amp;")
+      live_sales3 << transform_it(:subcat2id,x.taxon_name.gsub(" ", "-")).gsub("&","&amp;")
+
+      begin
+        live_sales3 << transform_it(:productdescription,y.description.gsub(" ", "-")).gsub("&","&amp;")
+      rescue Exception => e
+        live_sales3 << transform_it(:productdescription,y.description.to_s)
+      end
+      
+      sym_name=""
+      begin
+        y.images.each_index do |index|
+          sym_name="image_#{index}"
+          live_sales3 << transform_it(sym_name.to_sym,y.images[index].attachment.url.gsub(" ", "-")).gsub("&","&amp;")
+        end 
+      rescue Exception => e 
+          live_sales3 << transform_it(:images ,"Noinformationfound+#{e.inspect}")
+      end
+      begin
+         live_sales3 << transform_it(:shippingtime,y.variants.first.try(:ship_configuration).try(:type_of_sale).gsub(" ", "-")).gsub("&","&amp;") 
+      rescue Exception => e
+          live_sales3 << transform_it(:shippingtime,y.variants.first.try(:ship_configuration).try(:type_of_sale))
+      end
+     
+
+      begin
+        live_sales << transform_it(:sub_category,x.category2.gsub("&","&amp;"))
+        live_sales2 << transform_it(:sub_category_1,x.category2.gsub("&","&amp;"))
+        live_sales3 << transform_it(:sub_category_1,x.category2.gsub("&","&amp;"))
+      rescue Exception => e
+        live_sales << transform_it(:sub_category,x.category2)
+        live_sales2 << transform_it(:sub_category_1,x.category2)
+        live_sales3 << transform_it(:sub_category_1,x.category2)
+      end
+      
+
+      begin
+        live_sales2 << transform_it(:sub_category_2,x.taxon_name.gsub("&","&amp;"))
+        live_sales3 << transform_it(:sub_category_2,x.taxon_name.gsub("&","&amp;"))
+      rescue Exception => e
+        live_sales2 << transform_it(:sub_category_2,x.taxon_name)
+        live_sales3 << transform_it(:sub_category_2,x.taxon_name)
+      end
+    
+      live_sales << transform_it(:days_left,x.end_date)
+      live_sales << '</item>'
+    
+      live_sales2 << transform_it(:days_left,x.end_date)
+      live_sales2 << '</item>'
+
+      live_sales3 << transform_it(:days_left,x.end_date)
+      live_sales3 << '</item>'
+    }
+  }
+  live_sales << '</items>'
+  live_sales2 << '</items>'
+  live_sales3 << '</items>'
+  return live_sales.join("\n"), live_sales2.join("\n"), live_sales3.join("\n")
+end
+
+f = File.open("/home/ubuntu/apps/cs/public/komli.xml.tmp","w")
+g = File.open("/home/ubuntu/apps/cs/public/vizury.xml.tmp","w")
+h = File.open("/home/ubuntu/apps/cs/public/nupinch.xml.tmp","w")
+
+ls,ls2,ls3 = content_gen
+
+f.write(ls)
+f.close
+
+g.write(ls2)
+g.close
+
+h.write(ls3)
+h.close
+
+`cp /home/ubuntu/apps/cs/public/komli.xml.tmp /home/ubuntu/apps/cs/public/komli.xml`
+`cp /home/ubuntu/apps/cs/public/vizury.xml.tmp /home/ubuntu/apps/cs/public/vizury.xml`
+`cp /home/ubuntu/apps/cs/public/nupinch.xml.tmp /home/ubuntu/apps/cs/public/nupinch.xml`

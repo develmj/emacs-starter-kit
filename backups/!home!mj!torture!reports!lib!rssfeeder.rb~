@@ -1,0 +1,63 @@
+require 'rubygems'
+
+GENERATE_FOR = ["tookitaki"]
+
+ENV['RAILS_ENV'] = ARGV.first || ENV['RAILS_ENV'] || 'production'
+require File.expand_path(File.dirname(__FILE__) + "/../config/environment")
+
+def write_to_feed(path,data)
+  f = File.open(path,"w")
+  f.write(data)
+  f.close
+end
+
+def gen_rss_text(mid_data)
+  return '<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0">
+<channel>
+' + mid_data +
+'
+</channel>
+</rss>'
+end
+
+def infra_stats
+end
+
+def stats_feeder
+  date_value = Time.zone.now
+  st_date = Time.zone.parse("#{date_value.year}-#{date_value.month}-#{date_value.day} 00:00:00")
+  ed_date = Time.zone.now
+  orders = Spree::Order.select("total").where("state like 'complete' and (completed_at between ? and ?)",st_date,ed_date)
+  orders_sum = orders.map(&:total).sum 
+  orders_count = orders.size
+  user_register_day = Spree::User.count(:id, :conditions => ["created_at between ? and ?",st_date,ed_date])
+  interaction_day = Interaction.count(:id ,:distinct => true , :conditions =>["created_at between ? and ?",st_date,ed_date])
+  interaction_unique_day = Interaction.count(:user_id ,:distinct => true , :conditions =>["created_at between ? and ?",st_date,ed_date])
+  return "<item>
+<title>No. of Orders: #{orders_count}</title>
+<pubDate>#{(Time.zone.now - 1.seconds).strftime("%a, %d %b %Y %T +0530")}</pubDate>
+</item>
+<item>
+<title>Order Total: #{orders_sum}</title>
+<pubDate>#{(Time.zone.now - 2.seconds).strftime("%a, %d %b %Y %T +0530")}</pubDate>
+</item>
+<item>
+<title>New Users: #{user_register_day}</title>
+<pubDate>#{(Time.zone.now - 3.seconds).strftime("%a, %d %b %Y %T +0530")}</pubDate>
+</item>
+<item>
+<title>Pages Viewed: #{interaction_day}</title>
+<pubDate>#{(Time.zone.now - 4.seconds).strftime("%a, %d %b %Y %T +0530")}</pubDate>
+</item>
+<item>
+<title>Unique Logins: #{interaction_unique_day}</title>
+<pubDate>#{(Time.zone.now - 5.seconds).strftime("%a, %d %b %Y %T +0530")}</pubDate>
+</item>"
+end
+
+def generate_feed
+  write_to_feed("/home/ubuntu/apps/cs/public/stats.xml",gen_rss_text(stats_feeder))
+end
+
+generate_feed

@@ -1,0 +1,153 @@
+#!/usr/bin/env ruby
+require 'rubygems' if RUBY_VERSION < '1.9.0'
+require 'sensu-plugin/check/cli'
+require 'aws-sdk'
+require 'fog'
+require 'uni'
+
+#AWS.config(:access_key_id => 'AKIAJMKKXH6YYSJBCVJQ', :secret_access_key => '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',:region => 'ap-southeast-1')
+
+#elb = AWS::ELB.new
+#instance_ids = elb.load_balancers['prod'].instances.collect(&:id)
+#puts "#{instance_ids}"
+#i=EC2Metrics.new
+#i.run(instance_ids)
+
+#instance_id = 0 
+
+class EC2Metrics < Sensu::Plugin::Check::CLI
+#class EC2Metrics < Sensu::Plugin::Metric::CLI
+
+
+  option :aws_access_key,
+    :short => '-a AWS_ACCESS_KEY',
+    :long => '--aws-access-key AWS_ACCESS_KEY',
+    :description => "AWS Access Key. Either set ENV['AWS_ACCESS_KEY_ID'] or provide it as an option",
+    :required => true
+
+  option :aws_secret_access_key,
+    :short => '-s AWS_SECRET_ACCESS_KEY',
+    :long => '--aws-secret-access-key AWS_SECRET_ACCESS_KEY',
+    :description => "AWS Secret Access Key. Either set ENV['AWS_SECRET_ACCESS_KEY'] or provide it as an option",
+    :required => true
+
+  option :aws_region,
+    :short => '-r AWS_REGION',
+    :long => '--aws-region REGION',
+    :description => "AWS Region (such as eu-west-1).",
+    :default => 'ap-southeast-1'
+
+    #option :image_id,
+    #:short => '-i Image_ID',
+    #:long => '--image-id ImageId'
+    
+
+#option :instance_id,
+
+
+
+
+#option :instance_type,
+#:short => '-y InstanceType',
+#:long => '--instance-type InstanceType' 
+
+
+
+option :metric,
+:short => '-m Metrics',
+:long => '--metric metrics',
+:required => true
+
+
+option :scheme,
+    :description => "Metric naming scheme, text to prepend to metric",
+    :short => "-h SCHEME",
+    :long => "--scheme SCHEME",
+    :default => "EC2"
+
+ option :statistics,
+    :description => "Statistics type",
+    :short => "-t STATISTICS",
+    :long => "--statistics",
+    :default => "Average"
+
+
+    option :fetch_age,
+    :short => '-f fetch_age',
+    :long => '--fetch-age fetchage',
+    :default => 60
+
+def run(instance_ids)
+	
+	@value = instance_ids 
+puts "======="*25	
+puts @value
+@value.each do |ids|
+puts "***"*25
+
+puts "#{ids}"
+
+    if config[:scheme] == ""
+      graphitepath = "#{config[ids]}.#{config[:metric].downcase}"
+    else
+      graphitepath = config[:scheme]
+    end
+    statistics = ""
+    if config[:statistics] == ""
+      statistic_type = {
+        'CPUUtilization' => 'Average',
+        'NetworkIn' => 'Average',
+        'NetworkOut' => 'Average'
+       
+      }
+      statistics = statistic_type[config[:metric]]
+    else
+      statistics = config[:statistics]
+    end
+    begin
+      cw = Fog::AWS::CloudWatch.new(
+        :aws_access_key_id      => config[:aws_access_key],
+        :aws_secret_access_key  => config[:aws_secret_access_key],
+        :region             => config[:aws_region])
+        #:availability_zone  => config[:availability_zone])
+
+      et = Time.now() - config[:fetch_age]
+      st = et - 60
+
+      result = cw.get_metric_statistics({
+        'Namespace' => 'AWS/EC2',
+        'MetricName' => config[:metric],
+        'Dimensions' => [{
+          'Name' => 'InstanceId',
+          'Value' => config[ids],
+         }],
+         'Statistics' => [statistics],
+         'StartTime' => st.iso8601,
+         'EndTime' => et.iso8601,
+         'Period' => '60'
+      })
+
+      data = result.body['GetMetricStatisticsResult']['Datapoints'][0]
+      unless data.nil?
+        # We only return data when we have some to return
+        output graphitepath, data[statistics], data['Timestamp'].to_i, data[statistics]
+      end
+
+    rescue Exception => e
+      puts "Error: exception: #{e}"
+    end   
+    end
+end
+end
+
+AWS.config(:access_key_id => 'AKIAJMKKXH6YYSJBCVJQ', :secret_access_key => '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',:region => 'ap-southeast-1')
+elb = AWS::ELB.new
+instance_ids = elb.load_balancers['prod'].instances.collect(&:id)
+puts "#{instance_ids}"
+#instance_id =  instance_ids
+i=EC2Metrics.new
+i.run(instance_ids)
+
+
+
+

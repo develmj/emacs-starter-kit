@@ -1,0 +1,8 @@
+require 'rubygems'
+
+# Set up database initializer
+ENV[Rails.env.to_s+'_'] = 'st_new_dev'
+ENV[Rails.env.to_s+'_username'] = 'root'
+ENV[Rails.env.to_s+'_password'] = 'satanx'
+
+

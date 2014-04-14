@@ -1,0 +1,14 @@
+gawk -F'|' '{Queued[$1] = $2;}
+END {
+    flag = 0
+       for (var in Queued){
+          cmd = "./get_old_queued.sh "var
+          cmd|getline tmp
+          close(cmd);
+          print "queued of var =",Queued[var]
+          if ( tmp == Queued[var] ){
+            flag = 1 
+          }
+       }
+  print flag
+}' old_queued.txt

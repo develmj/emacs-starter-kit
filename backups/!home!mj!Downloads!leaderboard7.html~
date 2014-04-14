@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Leader board - Top winners</title>
+<meta name="description" content="leader board.">
+<script type='text/javascript' src="http://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/2.1.0/bootstrap.min.js"></script>
+
+<link href="http://s3-ap-southeast-1.amazonaws.com/st-public/assets/favicon-dcfdb4f003e2f11a51adf8426ef96106.ico" rel="shortcut icon" type="image/vnd.microsoft.icon" />
+
+<script src="http://s3-ap-southeast-1.amazonaws.com/st-public/assets/store/all-baa398dade9f4f75466d1ebfd6c294ba.js" type="text/javascript"></script>
+
+<link href="http://s3-ap-southeast-1.amazonaws.com/st-public/assets/store/all-51de249e8575cadb551bcd2ad510ddff.css"media="screen" rel="stylesheet" type="text/css" />
+
+<style type="text/css">
+@import url('//netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css');
+
+.borderless {
+    border: none !important; 
+}
+</style>
+
+</head>
+<body id="static_content" class="container-fluid row-fluid">
+
+
+  <div id="page_content">
+
+    <div class="border-wrap span11" style="float: none; margin: 0 auto;">
+      
+      <article>
+      
+      <section class="span12 margin-zero">
+        <a href="http://www.styletag.com">
+        <img src="https://s3.amazonaws.com/new_spree_st_bucket/static_pages/leader_board_banner.jpg" />
+        </a>
+
+      </section>
+
+
+        <section class="row-fluid span12 margin-zero paddingtop10">
+
+                  <p><span style="text-transform:uppercase !important;font-weight:bold">Current Leading Shoppers!</span> Shop on at Styletag.com to get ahead on the Leaderboard. The list is refreshed every 10 minutes. </p>
+
+          <section class="span2 margin-zero">
+            
+          <img src="https://s3.amazonaws.com/new_spree_st_bucket/static_pages/template_buy_05.jpg" alt="women sarees">
+          <section class="text-center paddingtop10">
+            <h5 style="letter-spacing: 6px;">Name 1</h5>
+            <hr style="width:60%; margin:auto;">
+          </section>
+      </section>
+
+
+
+          <section class="span2 margin-zero" style="margin-left:7% !important">
+          <img src="https://s3.amazonaws.com/new_spree_st_bucket/static_pages/template_buy_06.jpg" alt="women sarees">
+
+          <section class="text-center paddingtop10">
+            <h5 style="letter-spacing: 6px;">Name 2</h5>
+            <hr style="width:60%; margin:auto;">
+          </section>
+      </section>
+
+
+          
+          <section class="span2 margin-zero" style="margin-left:8% !important">
+          <img src="https://s3.amazonaws.com/new_spree_st_bucket/static_pages/template_buy_07.jpg" alt="women sarees">
+
+          <section class="text-center paddingtop10">
+            <h5 style="letter-spacing: 6px;"> Name 3</h5>
+            <hr style="width:60%; margin:auto;">
+          </section>
+      </section>
+
+
+          
+          <section class="span2 margin-zero" style="margin-left:8% !important">
+          <img src="https://s3.amazonaws.com/new_spree_st_bucket/static_pages/template_buy_08.jpg" alt="women sarees">
+
+          <section class="text-center paddingtop10">
+            <h5 style="letter-spacing: 6px;"> Name 4</h5>
+            <hr style="width:60%; margin:auto;">
+          </section>
+      </section>
+
+
+
+         <section class="span2 margin-zero pull-right">
+          <img src="https://s3.amazonaws.com/new_spree_st_bucket/static_pages/template_buy_10.jpg" alt="women sarees">
+
+          <section class="text-center paddingtop10">
+            <h5 style="letter-spacing: 6px;"> Name 4</h5>
+            <hr style="width:60%; margin:auto;">
+          </section>
+      </section>
+
+          
+       </section>
+
+     </article>
+
+      <article>
+        <section class="span12">
+        <div class="bs-docs-example">
+              <div class="accordion" id="accordion2">
+                <div class="accordion-group">
+                  <div class="accordion-heading">
+                    <a class="accordion-toggle" data-toggle="collapse" data-parent="#accordion2" data-target="#collapseOne" style="color:white">
+                      Click here for Rules
+                    </a>
+                  </div>
+                  <div id="collapseOne" class="accordion-body collapse">
+                    <div class="accordion-inner">
+                      <ol>
+                        <li>The contest is valid only on Credit Card/Debit Card/Netbanking orders. 1 Rupee is equal to 1 point. E.g. If you have placed a Credit Card/Debit Card/Netbanking order of Rs.1500, you gain 1500 points. </li>
+                      
+    <li>Top 5 shoppers will get assigned prizes for the month.</li>
+    <li>Contest starts on 1st March and ends on 31st March.</li>
+    <li>The more you shop, the more points you get. <a href="http://www.styletag.com">So shop on! </a></li>
+
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+               </div>
+        </div>
+      </section>
+      </article>
+      <article>
+        <section class="text-center paddingtop10">
+<table class="table table-striped">
+
+        <thead>
+          <tr>
+            <th>Leader Rank No.</th>
+            <th>Name</th>
+            <th>Points</th>
+            <th> Prize</th>
+          </tr>
+        </thead>
+        <tbody>
+<tr><td>001</td><td>Kavita Chatterjee</td><td>41849</td><td>iPhone 5C</td>
+<tr><td>002</td><td>Roma Suri</td><td>37036</td><td>iPad Air</td><tr><td>003</td><td>Ragini Tomlinson</td><td>32483</td> <td>iPad Mini <br />(cellular + wifi)</td><tr><td>004</td><td>Himali</td><td>24885</td><td>iPad Mini (wifi)</td><tr><td>005</td><td>Diadarshini</td><td>21258</td><td>iPod Touch
+</td><tr><td>006</td><td>Anitha</td><td>16804</td><td></td><tr><td>007</td><td>Ritu Kambli</td><td>16495</td><td></td><tr><td>008</td><td>Reeti Sirohi</td><td>15866</td><td></td><tr><td>009</td><td>Shanthi</td><td>15549</td><td></td><tr><td>010</td><td>Isha Makkar</td><td>14245</td><td></td><tr><td>011</td><td>Nitika</td><td>14019</td><td></td><tr><td>012</td><td>Mitesh</td><td>13237</td><td></td><tr><td>013</td><td>Anindeeta Baroowa</td><td>13095</td><td></td><tr><td>014</td><td>Dia</td><td>13002</td><td></td><tr><td>015</td><td>Mohini Singh</td><td>12441</td><td></td><tr><td>016</td><td>Styletag Snapdeal</td><td>12386</td><td></td><tr><td>017</td><td>Suresh</td><td>12064</td><td></td><tr><td>018</td><td>Premoo</td><td>11895</td><td></td><tr><td>019</td><td>Vaishnavi Reddy</td><td>11759</td><td></td><tr><td>020</td><td>Shai</td><td>11724</td><td></td>
+        </tbody>
+      </table>
+    </section>
+  
+    <article>
+
+  <section class="row-fluid span12 margin-zero paddingtop10">
+         <div class="bs-docs-example">
+              <div class="accordion" id="accordion3">
+                <div class="accordion-group">
+                  <div class="accordion-heading">
+                    <a class="accordion-toggle" data-toggle="collapse" data-parent="#accordion3" data-target="#collapseTwo" style="color:white">
+                      Cick here for Terms and Conditions of STYLETAG SHOPATHON
+
+                    </a>
+                  </div>
+                  <div id="collapseTwo" class="accordion-body collapse">
+                    <div class="accordion-inner">
+ 
+<ol>
+   <li> Five winners will be announced at the end of each month. The Five prizes to be given away would be announced/updated on www.styletag.com/leaderboard at the beginning of the next month.</li> 
+    <li>The points would decrease if any orders are cancelled by the contestant/customer. No points will be decreased if the order is called from Styletag's end.</li>
+    <li>The prizes will be sent for delivery only once the orders placed are dispatched to the contest winners.</li>
+    <li>If any discrepancy is noticed in terms of fake orders/fake e-mail ids, the contestant would be disqualified from the competition.</li>
+    <li>The contest rules and regulations are Styletag’s discretion and the winner announcement would be on careful consideration by Styletag.</li>
+    <li>The decision made by Styletag with regard to winners is final and irrevocable.</li>
+    <li>The contest has no affiliation with Apple, Facebook or any product or service providers. It is the sole property of Styletag.</li>
+    <li>All prizes are subject to availability, and STYLETAG reserves the right to replace the prize with an alternative product or colour of equal or higher value if necessary at the promoters' discretion.</li>
+    <li>Winner(s) will be notified by email or telephone (using the details provided at entry) within April 15, 2014. Following such notification, the winner will be required to send the Promoter full details of their postal address to which the Prize will be delivered (if applicable).</li>
+    <li>Please allow 28 days for delivery of the Prize. STYLETAG accepts no responsibility for the Prize being lost, damaged or delayed in the post.
+    Competitions are not open to employees (or members of their immediate families) of STYLETAG.</li>
+    <li>By entering the competition you agree to having your name and photo published online or in a future issue of STYLETAG E-Magazine.</li>
+    
+    <li>The closing date is as specified in each competition, and STYLETAG reserves the right to amend the competition end date at any time.</li>
+    
+    <li>No part of a prize is exchangeable for cash or any other prize.v
+    
+    <li>STYLETAG will endeavour to send the prizes within 15 days of the competition's end date but cannot guarantee its delivery time.</li>
+    
+    <li> PURCHASE IS NECESSARY TO ENTER OR WIN. A purchase will increase your chances of winning. Participation constitutes entrant's full and unconditional agreement to, and acceptance of these Official Rules.</li>
+    
+    <li>Only one entry per person will be considered for contest entry unless the contest announcement specifically says that multiple entries are allowed.</li>
+    
+    <li>By participating in a Styletag competition or giveaway, you fully agree and accept Styletag's Terms and Conditions as well as the individual terms and conditions of the competition.</li>
+    <li>Prizes can only be delivered to a valid address within India.</li>
+    <li>All prizes are non-refundable and non-transferable</li>
+    </ol>
+                     </div>
+                  </div>
+                </div>
+               </div>
+        </div>
+      </section>
+      </article>
+
+  </article>
+    </div>
+
+            <section class="row-fluid span12 margin-zero paddingtop10">
+              &nbsp;
+              <section>
+  </div>
+<br />
+<script type="text/javascript" src="http://www.w3resoure.com/twitter-bootstrap/twitter-bootstrap-v2/docs/assets/js/bootstrap-collapse.js"></script>
+
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+
+</body>
+</html>

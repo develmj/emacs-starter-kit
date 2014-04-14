@@ -1,0 +1,152 @@
+require 'text'
+require 'fast-stemmer'
+require 'twitter'
+
+
+TWITTER_CONSUMER_KEY = "NM3AGMdWNiD5c9YOSbJ2w"
+TWITTER_CONSUMER_SECRET = "ebsMMNguFqjF95TyOPiU3tD8uhDNGqtdI0FJr7ykzo"
+TWITTER_ACCESS_TOKEN = "1903878085-z5hOVB9HPNZLiYDjDCbbXOsqEcLK9ehFiTAYDKn"
+TWITTER_ACCESS_TOKEN_SECRET = "UBaFQOBPKb5d4QpzPxEi7MuXkK1HQyCIPDd3fge0Os1BU"
+
+WORKINGDIR = "/home/mj/torture/post_queue/"
+HASHWORD = WORKINGDIR + "hashwords"
+$hash_tag_words = {}
+$tw_client = nil
+
+def initiate_twitter_client
+  $tw_client = Twitter::REST::Client.new({
+                                           :consumer_key => TWITTER_CONSUMER_KEY,
+                                           :consumer_secret => TWITTER_CONSUMER_SECRET,
+                                           :access_token => TWITTER_ACCESS_TOKEN,
+                                           :access_token_secret => TWITTER_ACCESS_TOKEN_SECRET
+                                         })
+end
+
+STOPWORDS = Regexp.union(["A000", "A140", "A130", "A110", "A263", "A262", "A234", "A136", "A250", "A252", "A530", "A400", "A452", "A450", "A463", "A420", "A432", "A500", "A552", "A513", "A550", "A560", "A163", "A160", "A162", "A161", "A600", "A653", "A200", "A230", "A220", "A300", "B000", "B250", "B220", "B500", "B160", "B165", "B530", "B410", "B400", "B230", "B360", "B350", "B300", "B610", "C000", "C550", "C500", "C530", "C200", "C635", "C520", "C464", "C526", "C522", "C523", "C535", "C621", "C430", "C435", "C620", "C653", "D000", "D153", "D261", "D213", "D300", "D353", "D160", "D253", "D530", "D500", "D563", "D600", "E000", "E200", "E300", "E230", "E360", "E420", "E426", "E520", "E536", "E212", "E320", "E150", "E160", "E161", "E165", "E163", "E166", "E223", "E251", "E213", "F000", "F600", "F130", "F623", "F100", "F400", "F656", "F630", "F650", "F636", "G000", "G300", "G150", "G100", "G500", "G350", "G630", "H000", "H300", "H353", "H150", "H634", "H253", "H100", "H153", "H400", "H410", "H520", "H600", "H613", "H610", "H650", "H615", "H624", "H500", "H524", "H360", "H114", "H130", "I000", "I300", "I400", "I500", "I100", "I256", "I530", "I525", "I520", "I532", "I560", "I521", "I523", "I563", "I200", "I253", "I340", "I324", "J000", "J230", "K000", "K100", "K130", "K500", "K550", "L000", "L230", "L300", "L360", "L364", "L200", "L340", "M000", "M540", "M500", "M100", "M600", "M230", "M610", "M234", "M200", "M235", "M241", "N000", "N500", "N300", "N600", "N640", "N226", "N360", "N160", "N163", "N230", "N130", "N654", "N140", "O000", "O120", "O100", "O135", "O200", "O430", "O500", "O520", "O540", "O530", "O600", "O360", "O362", "O230", "O624", "O300", "O323", "O160", "O164", "P000", "P632", "P600", "P610", "P420", "P400", "P214", "P625", "P611", "P613", "Q000", "Q300", "Q100", "R000", "R360", "R300", "R400", "R250", "R263", "R212", "R230", "S000", "S300", "S500", "S253", "S410", "S521", "S530", "S600", "S620", "S150", "S160", "S400", "S430", "S435", "S520", "S200", "S513", "S550", "S535", "S560", "S121", "S340", "S100", "T000", "T200", "T250", "T400", "T530", "T500", "T520", "T300", "T600", "T524", "T613", "T610", "T616", "T650", "T615", "T100", "T630", "T620", "T624", "T623", "T230", "T640", "U000", "U500", "U536", "U516", "U542", "U534", "U530", "U100", "U150", "U200", "U240", "U210", "V000", "V400", "V600", "V200", "W000", "W530", "W253", "W300", "W400", "W600", "W100", "W425", "W653", "W310", "W500", "W520", "W510", "W613", "W610", "W650", "W615", "W360", "W200", "W160", "W350", "W330", "W536", "W430", "W435", "X000", "Y000", "Y300", "Y400", "Y600", "Y100", "Y624", "Z000", "Z600"])
+
+URI_REGEX = %r"((?:(?:[^ :/?#]+):)(?://(?:[^ /?#]*))(?:[^ ?#]*)(?:\?(?:[^ #]*))?(?:#(?:[^ ]*))?)"
+
+def initiate_hash_tag_words
+  if File.exist?(HASHWORD)
+    $hash_tag_words = Marshal.load(File.read(HASHWORD))
+    $hash_tag_words = {} unless $hash_tag_words.is_a?(Hash)
+  end
+end
+
+def write_hash_to_file
+  f = File.open(HASHWORD,"w")
+  f.write(Marshal.dump($hash_tag_words))
+  f.close
+end
+
+def get_hashtags(title)
+  return title.scan(/(#\w+)/).flatten
+end
+
+def remove_twittermentions(title)
+  return title.sub(/(@\w+)/,"")
+end
+
+def remove_hashtags(title)
+  return title.sub(/(#\w+)/,"")
+end
+
+def remove_uris(text)
+  text.split(URI_REGEX).collect do |s|
+    unless s =~ URI_REGEX
+      s
+    end
+  end.join
+end
+
+def remove_specialchars(title)
+  return title.gsub(/[^a-zA-Z0-9\-\ ]/,"")
+end
+
+def remove_stopwords(title)
+  return title.sub(STOPWORDS,"")
+end
+
+def clean_title(title)
+  return remove_specialchars(remove_twittermentions(remove_hashtags(remove_uris(title))))
+end
+
+def stemandport_title(title)
+  title.split(" ").map{|x| Text::Soundex.soundex(Stemmer::stem_word(x))}.compact.join(" ")
+end
+
+def process_title(title)
+  hash_tags = get_hashtags(title)
+  content = remove_stopwords(stemandport_title(clean_title(title)))
+  content.split(" ").compact.uniq.each{|x|
+    tags = {}
+    tags = $hash_tag_words[x] if $hash_tag_words[x]
+    hash_tags.each{|y|
+      if tags[y]
+        tags[y] = tags[y] + 1
+      else
+        tags[y] = 1
+      end
+    }
+    $hash_tag_words[x] = tags
+  }
+end
+
+def process_tweets(tweets)
+  initiate_hash_tag_words
+  tweets.each{|x|
+    process_title(x)
+  }
+end
+
+def generate_hashtags(title)
+  content = remove_stopwords(stemandport_title(clean_title(title)))
+  hash_tags = []
+  taghash = {}
+  content.split(" ").compact.uniq.each{|x|
+    hash_tags << $hash_tag_words[x]
+  }
+  hash_tags.compact.each{|x|
+    x.keys.each{|y|
+      if taghash[y]
+        taghash[y] = taghash[y] + x[y]
+      else
+        taghash[y] = x[y]
+      end
+    }
+  }
+  ret = taghash.max_by{|k,v| v}
+  if ret and ret.is_a?(Array)
+    return ret[0] if ret[1] > 10
+    return ""
+  else
+    return ""
+  end
+end
+
+def post_scraper
+  initiate_twitter_client
+  initiate_hash_tag_words
+  tweets = []
+  ["#apple","#android","#appdev","#bigdata","#cloud","#cloudcomputing","#ecommerce","#hadoop","#gadgets","#Linux","#microsoft","#opensource","#rails","#smartphone","#vmware","#virtualization","#win8","#xen","#zeroday"].each{|x|
+    c = 0
+    $tw_client.search("to:justinbieber marry me", :count => 3, :result_type => "recent").collect{|tweet|
+      break if c > 
+      tweets << 
+    }
+  }
+    
+end
+
+=begin
+
+/ take sentence
+/ detect hashtags
+incase the sentence has existing hash words, remove hash word and associate hash words with non-stop words
+/ remove stop words
+build hashing for non-stop words to hash words
+/ use porter stemming and soundex for words.
+   
+=end
+
+  

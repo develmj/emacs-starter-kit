@@ -1,0 +1,39 @@
+#!/bin/bash
+
+if [ -f /home/ubuntu/.saleuploadprogress/old_queued.txt ]; then
+skucount=$(tail -n +2 /home/ubuntu/apps/sum/public/live_progress.txt| gawk -F'|' '{Sales[$2]++;}
+END {
+    pending = 0	
+	for (var in Sales){
+	  if ( Sales[var] == 2 ){
+            cmd = "./queued_count.sh "var
+            cmd|getline tmp
+            close(cmd);
+            pending = pending + tmp
+	  }
+        }
+  print pending
+}
+')
+#Current Queued
+gawk -v count=$skucount '{Queued[$1] = $2;}
+END {
+    flag = 0
+       for (var in Queued){
+          cmd = "./get_old_queued.sh "var
+          cmd|getline tmp
+          close(cmd);
+          if ( tmp == Queued[var] ){
+            flag = 1
+          }
+       }
+     if ( flag == 1 ) {
+     cmd = "/start_panic.sh "count
+     cmd|getline
+     close(cmd);
+     } 
+}' old_queued.txt
+
+#Generate Old queued
+fi
+tail -n +2 /home/ubuntu/apps/sum/public/live_progress.txt|grep -v Uploaded|gawk -F'|' '{print $2,$6}' > old_queued.txt

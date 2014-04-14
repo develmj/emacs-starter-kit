@@ -1,0 +1,39 @@
+Hi Vinit
+
+1. What Order Attributes (Order Qty, Price, Address etc) can be Edited from CS (Customer Support)  Dashboard???
+
+Customer support can change following attributes,
+
+- Order quantity
+
+- Full Address including pincode and phone no
+
+- Payment type (CC/COD) - This is done after generating a separate Online Payment for a COD order, in the case of COD to CC.
+
+- Courier Service provider
+
+- Order State
+
+- Shipping charges (Adjustment amount)
+
+- Promotions (Adjustment amount)
+
+2.  Can Order Lines be Cancelled / Closed from CS Dashboard???
+
+- Order line items does not have any states, however, the removal and addition of line items are done from our admin console.
+
+3. Can you share the various Order Status Used in your Website and their Significance.
+
+- cart, payment, complete, confirm, cancel
+
+4.       Do you manage refunds & Returns from the Dashboard??
+
+Yes, we have an approval system for refunds. Returns are managed manually as of now.
+
+5.       Do you show shipped qty for each Order Line on your website??
+
+Not as of now. But we would like to going forward.
+
+6.       DO you maintain multiple shipments of the order on the Dashboard??
+
+No

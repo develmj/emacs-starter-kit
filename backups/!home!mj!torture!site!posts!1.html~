@@ -1,0 +1,34 @@
+All through my career, I have heavily relied on such terminal helpers and aliases. They greatly reduce retyping repetitive commands and such. Carpal Tunnel syndrome is looming on almost all of us. Thought it might be useful to share some of them:
+
+&nbsp;
+
+<strong><span class="highlight2">All the below aliases and helpers need to be put in the .bashrc file in your home directory.</span> </strong>
+
+&nbsp;
+
+<strong>Alert</strong>
+
+Now, alerts can be used by other programs to show on screen notifications of sorts. You could also use it to show you when a long running program has completed without having to keep looking at the terminal.
+<pre class="lang:default decode:true">alias alert='notify-send --urgency=low -i "$([ $? = 0 ] &amp;amp;&amp;amp; echo terminal || echo error)" "$(history|tail -n1|sed -e '\''s/^\s*[0-9]\+\s*//;s/[;&amp;amp;|]\s*alert$//'\'')"'</pre>
+&nbsp;
+
+<strong>Grep/Egrep/Fgrep</strong>
+
+Use grep often? Make it a lot more visually usable by enabling colors on default.
+
+ 
+<pre class="lang:default decode:true">alias egrep='egrep --color=auto'
+
+alias fgrep='fgrep --color=auto'
+
+alias grep='grep --color=auto'</pre>
+
+<strong>ls - Directory listing</strong>
+
+ls is one of the most used commands. We can prettify the output with a default color option.
+
+<pre class="lang:default decode:true">alias la='ls --color=auto'</pre>
+
+The code below lists almost all files using the "-A" option.
+
+<pre class="lang:default decode:true">alias la='ls -A'</pre>

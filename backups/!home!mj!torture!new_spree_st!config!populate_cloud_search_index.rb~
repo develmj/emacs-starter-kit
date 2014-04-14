@@ -1,0 +1,91 @@
+require 'rubygems'
+
+ENV['RAILS_ENV'] = ARGV.first || ENV['RAILS_ENV'] || 'production'
+require File.expand_path(File.dirname(__FILE__) + "/../config/environment.rb")
+
+def clear_history
+  history = []
+
+  ds = AWSCloudSearch::CloudSearch.new('stsearch-hakmf3joj5mtbgfs4is2uu4iw4', 'ap-southeast-1')
+  batch = AWSCloudSearch::DocumentBatch.new
+  search_request = AWSCloudSearch::SearchRequest.new
+  search_request.size = 10000
+  search_request.bq = "formatcol:666"
+  
+  history = ds.search(search_request).hits.map{|x| x["id"].to_i}
+  ds = AWSCloudSearch::CloudSearch.new('stsearch-hakmf3joj5mtbgfs4is2uu4iw4', 'ap-southeast-1')
+  
+  history.each{|x|
+    doc = AWSCloudSearch::Document.new(true)
+    doc.id = x
+    batch.delete_document doc
+  }
+  ds.documents_batch(batch)
+end
+
+def write_to_elasticache_size(map)
+  redis = Redis.new(:host => "stsizecache.vz0xqg.0001.apse1.cache.amazonaws.com", :port => 6379, :driver => :hiredis)
+
+  cur_keys = redis.keys
+  redis.del(*cur_keys)
+  
+  map.keys.each{|x|
+    redis.set(x,map[x].to_json)
+  }
+end
+
+def write_to_elasticache_color(map)
+  redis = Redis.new(:host => "stcolorcache.vz0xqg.0001.apse1.cache.amazonaws.com", :port => 6379, :driver => :hiredis)
+
+  cur_keys = redis.keys
+  redis.del(*cur_keys)
+  
+  map.keys.each{|x|
+    redis.set(x,map[x])
+  }
+end
+
+def populate_product_index
+  size_map = {}
+  color_map = {}
+  
+  
+  color_id = Spree::Property.find_by_name("color").try(&:id)
+  detail_id = Spree::Property.find_by_name("detail").try(&:id)
+  gender_id = Spree::Property.find_by_name("gender").try(&:id)
+  material_id = Spree::Property.find_by_name("material").try(&:id)
+  color_family_id = Spree::Property.find_by_name("color family").try(&:id)
+  
+  clear_history
+  
+  Spree::ActiveSaleEvent.live_active.each{|x|
+    ds = AWSCloudSearch::CloudSearch.new('stsearch-hakmf3joj5mtbgfs4is2uu4iw4', 'ap-southeast-1')
+    batch = AWSCloudSearch::DocumentBatch.new
+    x.eventable.products.active.each{|y|
+      doc = AWSCloudSearch::Document.new(true)
+      doc.id = y.id.to_s
+      doc.lang = 'en'
+      doc.add_field('id', y.id.to_s)
+      doc.add_field('name', y.name)
+      doc.add_field('price',y.price.to_i.to_s)
+      doc.add_field('color',y.product_properties.where(:property_id => color_id).last.try(&:value).to_s)
+      doc.add_field('description',y.description)
+      doc.add_field('detail',y.product_properties.where(:property_id => detail_id).last.try(&:value).to_s)
+      doc.add_field('gender',y.product_properties.where(:property_id => gender_id).last.try(&:value).to_s)
+      doc.add_field('material',y.product_properties.where(:property_id => material_id).last.try(&:value).to_s)
+      doc.add_field('sale',x.name)
+      express = y.variants.last.ship_configuration_id == 11 ? "yes" : "no"
+      doc.add_field('shiptype',express)
+      batch.add_document doc
+      s_map = y.option_values.map{|z| z.presentation.downcase unless z.presentation.downcase == "n/a"}.compact
+      c_map_value = y.product_properties.where(:property_id => color_family_id).last.try(&:value).to_s
+      color_map[y.id] = c_map_value unless c_map_value.empty?
+      size_map[y.id] = s_map unless s_map.empty?
+    }
+    ds.documents_batch(batch) unless batch.size == 0
+  }
+  write_to_elasticache_size(size_map)
+  write_to_elasticache_color(color_map)
+end
+
+populate_product_index

@@ -1,0 +1,3 @@
+#!/bin/bash
+
+tail -n +2 sample.txt|grep -v Uploaded|grep $1|gawk -F'|' '{print $6}'|cut -d " " -f 2
